@@ -242,7 +242,8 @@ By_Step$FileSize_per_Sample <- merge( aggregate(SIZE ~ STEP,data=By_Sample,mean)
 By_Step$FileSize_per_Sample[,2:3] <- By_Step$FileSize_per_Sample[,2:3] / 1e9
 colnames(By_Step$FileSize_per_Sample) <- c("STEP","MN","SD")
 ## Re-order Steps
-By_Step <- lapply( By_Step, function(x) x[c(4,1,5,8,6,9,3,2,7),] )
+RE_ORDER <- c(4,1,5,8,6,9,3,2,7)
+By_Step <- lapply( By_Step, function(x) x[RE_ORDER,] )
 
 #####################################
 ## PUT INTO SAMPLE ##################
@@ -253,15 +254,15 @@ colnames(TABLE) <- table_cols ; rownames(TABLE) <- c("FQ",STEP_NAMES)
 TABLE[,"Order"] <- 1:nrow(TABLE)-1
 TABLE[,"Step"] <- rownames(TABLE)
 TABLE[,"Tool"] <- c( "-","BWA","Samtools","Samtools","Samtools","PicardTools","GATK","GATK","GATK","GATK" )
- # Cores/Commands
+ # Cores & Commands
 Print_Jobs <- paste( round(By_Step$Command_per_Sample$MN,2), "+/-", round(By_Step$Command_per_Sample$SD,2), sep="" )
-TABLE[,"Commands/Sample"] <- c( NA, Print_Jobs ) ; TABLE[,"Commands/Sample"][4:10] <- 1
-# TABLE[,"Cores/Command"] <- c( NA,8,1,1,1,2,2,3,8,8 )
+TABLE[,"Commands/Sample"] <- c( NA, Print_Jobs ) ; TABLE[,"Commands/Sample"][4:10] <- rep( c(1,4),c(6,1) )
 Print_Cores <- paste( round(By_Step$Cores_per_Command$MN,2), "+/-", round(By_Step$Cores_per_Command$SD,2), sep="" )
 TABLE[,"Cores/Command"] <- c( NA, Print_Cores )
 Print_perNode <- paste( round(By_Step$Command_per_Node$MN,2), "+/-", round(By_Step$Command_per_Node$SD,2), sep="" )
 TABLE[,"Commands/16cores"] <- c( NA, Print_perNode )
- # Time/SUs
+TABLE[,"Commands/16cores"] <- 16 / TABLE[,"Cores/Command"]
+ # Time & SUs
 Print_Wall_Time <- paste( round(By_Step$Walltime_per_Sample$MN,2), "+/-", round(By_Step$Walltime_per_Sample$SD,2), sep="" )
 TABLE[,"Wall_Time/Sample"] <- c(NA, Print_Wall_Time)
 Print_CPU_Time <- paste( round(By_Step$CPUtime_per_Sample$MN,2), "+/-", round(By_Step$CPUtime_per_Sample$SD,2), sep="" )
@@ -279,10 +280,40 @@ TABLE[,"Output_File/Sample"] <- c(NA, Print_Size )
 FQ_SIZE <- aggregate( as.numeric(fastq[,"FILE_SIZE_F"]), list( SAMPLE=fastq$SAMPLE_F), sum )[,2] / 1e9
 TABLE["FQ","Output_File/Sample"] <- paste( round(mean(FQ_SIZE),2), "+/-", round(sd(FQ_SIZE),2) )
 
-#############################################
-## FIGURE 1B - MAPPING EFFICIENCY ###########
-#############################################
+#####################################
+## SAVE COMPILED RESULTS ############
 
+## Save List of Results
+save( By_Step, file=paste(PathToSave,"Compiled_Stats_By_Step.Rdata",sep="") )
+
+## Save Tables
+write.table( By_Sample, paste(PathToSave,"Compiled_Stats_By_Sample.txt",sep=""), sep="\t",row.names=F,col.names=T,quote=F )
+write.table( TABLE, paste(PathToSave,"Summary_Stats_for_Table.txt",sep=""), sep="\t",row.names=F,col.names=T,quote=F )
+write.table( TABLE, paste(PathToSave,"Summary_Stats_by_Step.csv",sep=""), sep=",",row.names=F,col.names=T,quote=F )
+write.table( t(TABLE[,-1]), paste(PathToSave,"Summary_Stats_by_Step.transpose.csv",sep=""), sep=",",row.names=T,col.names=F,quote=F )
+
+#####################################################################
+## CREATE PLOTS FOR FIGURE 1 ########################################
+#####################################################################
+
+#####################################
+## FIGURE 1A - STORAGE REQUIREMENTS #
+Step_Size <- reshape( By_Sample[,c("SAMPLE","SIZE","STEP")], v.names="SIZE", idvar="SAMPLE", timevar="STEP", direction="wide" )
+rownames(Step_Size) <- Step_Size[,"SAMPLE"]
+Step_Size <- Step_Size[,RE_ORDER+1] ; colnames(Step_Size) <- STEP_NAMES
+Step_Size <- data.frame( Fastq=FQ_SIZE*1e9, Step_Size )
+## Show Boxplot of the steps
+png(paste(PathToSave,"1a-Per_Sample_Storage.png",sep=""),width=1500,height=1000,pointsize=30)
+boxplot(Step_Size[,1:10]/1e9, col=PLOT_COLS[2], main="Storage Required Per Sample", ylab="Output File Size (GB)", xlab="Processing Step",pch="+", xaxt="n")
+text(x=1:10+.25, par("usr")[3] - 0.05*diff(range(Step_Size/1e9,na.rm=T)),labels=colnames(Step_Size), pos=2, srt=30, cex=1.05,xpd=T)
+axis(1, at=1:10, labels=F)
+abline( h=seq(0,1000,100), col=PLOT_COLS[9], lty=2,lwd=1)
+boxplot(Step_Size[,1:10]/1e9, col=PLOT_COLS[2], pch="+", xaxt="n", add=T)
+# for ( i in 1:10 ) { points( rep(i,nrow(Step_Size)), Step_Size[,i]/1e9, pch="+" ) }
+dev.off()
+
+#####################################
+## FIGURE 1B - MAPPING EFFICIENCY ###
 MAP <- MG[ MG$STEP=="Map", ]
 COLORS <- PLOT_COLS[c(4,6)] # c("slateblue3","tomato2")
 COLORS.2 <- PLOT_COLS.4[c(4,6)]
@@ -293,7 +324,7 @@ MOD.8 <- lm( MAP$SUs[C.8] ~ I(MAP$SIZE[C.8]/1e9) ) ; COEF.8 <- round( coef(MOD.8
 MOD.16 <- lm( MAP$SUs[-C.8] ~ I(MAP$SIZE[-C.8]/1e9) ) ; COEF.16 <- round( coef(MOD.16)[2], 3 )
 XLIM <- c(0,max(MAP$SIZE/1e9,na.rm=T))
 YLIM <- c(0,max(MAP$SUs,na.rm=T))
-png(paste(PathToSave,"1-Mapping_Efficiency.png",sep=""),width=1000,height=1000, pointsize=30)
+png(paste(PathToSave,"1b-Mapping_Efficiency.png",sep=""),width=1000,height=1000, pointsize=30)
 plot(0,0, type="n", xlim=XLIM, ylim=YLIM, xlab="Sam File Size (GB)", ylab="SUs (Cores-Hours)", main="Read Mapping Efficiency")
 abline(h=seq(0,200,20), lty=2, ,lwd=1, col=PLOT_COLS[9] )
 abline(v=seq(0,200,20), lty=2, ,lwd=1, col=PLOT_COLS[9] )
@@ -304,72 +335,9 @@ legend(20,80,legend=c("8","16"),title="# Cores",pch="+",col=COLORS)
 text( 0, c(55,50), labels=paste(c(8,16),"Cores:",c(COEF.8,COEF.16),"SU/GB"), col=COLORS.2, pos=4 )
 dev.off()
 
-
-
-
-
-###############################
-## WHICH SAMPLES ARE WHERE? ###
-###############################
-
-fastq_Size <- rep(0,length(SAMPLE_NAMES))
-Step_Run <- array("N", dim=c(length(SAMPLE_NAMES),9))
-Step_Size <- array(, dim=c(length(SAMPLE_NAMES),9))
-#Step_Run[,1:3] <- "Y"
-colnames(Step_Run) <- colnames(Step_Size) <- c(STEP_NAMES)
-#colnames(Step_Run)[1:8] <- c(STEP_NAMES[1:8], "Prnt_Rds_1", "Prnt_Rds_2", "Prnt_Rds_3", "Prnt_Rds_4", "Prnt_Rds_5")
-rownames(Step_Run) <- rownames(Step_Size) <- SAMPLE_NAMES
-
-for (i in 1:length(SAMPLE_NAMES)) {
-
-  fastq_Size[i] <- sum(fastq$FILE_SIZE_F[grep(SAMPLE_NAMES[i], fastq$SAMPLE_F)]) 
-
-  Step_Run[i,1] <- length(grep(SAMPLE_NAMES[i], Map_F$FILE_NAME))
-  Step_Size[i,1] <- sum(Map_F[grep(SAMPLE_NAMES[i], Map_F$FILE_NAME),3]) 
-
-  Step_Run[i,2] <- length(grep(SAMPLE_NAMES[i], Bam_F$FILE_NAME))
-  Step_Size[i,2] <- sum(Bam_F[grep(SAMPLE_NAMES[i], Bam_F$FILE_NAME),3]) 
-
-  if (length(grep(SAMPLE_NAMES[i], Merge_F$FILE_NAME)) > 0) {
-    Step_Size[i,3] <- Merge_F[grep(SAMPLE_NAMES[i], Merge_F$FILE_NAME),3] }
-
-  if (length(grep(SAMPLE_NAMES[i], Sort_F$FILE_NAME)) > 0) {
-    Step_Run[i,4] <- "Y" 
-    Step_Size[i,4] <- Sort_F[grep(SAMPLE_NAMES[i], Sort_F$FILE_NAME),3] }
-
-  if (length(grep(SAMPLE_NAMES[i], MrkDps_F$FILE_NAME)) > 0) {
-    Step_Run[i,5] <- "Y"
-    Step_Size[i,5] <- MrkDps_F[grep(SAMPLE_NAMES[i], MrkDps_F$FILE_NAME),3] }
-
-  if (length(grep(SAMPLE_NAMES[i], TrgtCrtr_F$FILE_NAME)) > 0) {
-    Step_Run[i,6] <- "Y"
-    Step_Size[i,6] <- TrgtCrtr_F[grep(SAMPLE_NAMES[i], TrgtCrtr_F$FILE_NAME),3] }
-
-  if (length(grep(SAMPLE_NAMES[i], IndelRlgnr_F$FILE_NAME)) > 0) {
-    Step_Run[i,7] <- "Y"
-    Step_Size[i,7] <- IndelRlgnr_F[grep(SAMPLE_NAMES[i], IndelRlgnr_F$FILE_NAME),3] }
-
-  if (length(grep(SAMPLE_NAMES[i], BsRecal_F$FILE_NAME)) > 0) {
-    Step_Run[i,8] <- "Y"
-    Step_Size[i,8] <- BsRecal_F[grep(SAMPLE_NAMES[i], BsRecal_F$FILE_NAME),3] }
-
-  Step_Run[i,9] <- length(grep(SAMPLE_NAMES[i], PrntRds_F$FILE_NAME))
-  Step_Size[i,9] <- sum(PrntRds_F[grep(SAMPLE_NAMES[i], PrntRds_F$FILE_NAME),3]) }
-
-Step_Size[which(Step_Size[,9]==0),9] <- NA
-Step_Size <- data.frame(FastQ=fastq_Size, Step_Size)
-
-## Show Memory Necessity for each Step
-
-# Show Boxplot of the steps
-png(paste(PathToSave,"2-Per_Sample_Storage.png",sep=""),width=1500,height=1000,pointsize=30)
-boxplot(Step_Size[,1:10]/1e9, col=PLOT_COLS[2], main="Storage Required Per Sample", ylab="Output File Size (GB)", xlab="Processing Step",pch="+", xaxt="n")
-text(x=1:10+.25, par("usr")[3] - 0.05*diff(range(Step_Size/1e9,na.rm=T)),labels=colnames(Step_Size), pos=2, srt=30, cex=1.05,xpd=T)
-axis(1, at=1:10, labels=F)
-abline( h=seq(0,1000,100), col=PLOT_COLS[9], lty=2,lwd=1)
-boxplot(Step_Size[,1:10]/1e9, col=PLOT_COLS[2], pch="+", xaxt="n", add=T)
-# for ( i in 1:10 ) { points( rep(i,nrow(Step_Size)), Step_Size[,i]/1e9, pch="+" ) }
-dev.off()
+##############################################################################################################################################################
+##  ##  LEFT OFF UPDATING CODE HERE!!!! 06/30/15  ##  ##  ##  ##  ##  ##  ##  ##  ##
+##############################################################################################################################################################
 
 # Add up total File Size for each Step and divide by 1000000000 (to convert to GB)
 # (To extrapolate for incomplete steps, find mean & multiply by 438)
@@ -563,6 +531,60 @@ EXTRAP <- MEANS*438
 
 
 
+#####################################################################
+## END OF DOC #######################################################
+#####################################################################
+
+# ###############################
+# ## WHICH SAMPLES ARE WHERE? ###
+# ###############################
+
+# fastq_Size <- rep(0,length(SAMPLE_NAMES))
+# Step_Run <- array("N", dim=c(length(SAMPLE_NAMES),9))
+# Step_Size <- array(, dim=c(length(SAMPLE_NAMES),9))
+# #Step_Run[,1:3] <- "Y"
+# colnames(Step_Run) <- colnames(Step_Size) <- c(STEP_NAMES)
+# #colnames(Step_Run)[1:8] <- c(STEP_NAMES[1:8], "Prnt_Rds_1", "Prnt_Rds_2", "Prnt_Rds_3", "Prnt_Rds_4", "Prnt_Rds_5")
+# rownames(Step_Run) <- rownames(Step_Size) <- SAMPLE_NAMES
+
+# for (i in 1:length(SAMPLE_NAMES)) {
+
+#   fastq_Size[i] <- sum(fastq$FILE_SIZE_F[grep(SAMPLE_NAMES[i], fastq$SAMPLE_F)]) 
+
+#   Step_Run[i,1] <- length(grep(SAMPLE_NAMES[i], Map_F$FILE_NAME))
+#   Step_Size[i,1] <- sum(Map_F[grep(SAMPLE_NAMES[i], Map_F$FILE_NAME),3]) 
+
+#   Step_Run[i,2] <- length(grep(SAMPLE_NAMES[i], Bam_F$FILE_NAME))
+#   Step_Size[i,2] <- sum(Bam_F[grep(SAMPLE_NAMES[i], Bam_F$FILE_NAME),3]) 
+
+#   if (length(grep(SAMPLE_NAMES[i], Merge_F$FILE_NAME)) > 0) {
+#     Step_Size[i,3] <- Merge_F[grep(SAMPLE_NAMES[i], Merge_F$FILE_NAME),3] }
+
+#   if (length(grep(SAMPLE_NAMES[i], Sort_F$FILE_NAME)) > 0) {
+#     Step_Run[i,4] <- "Y" 
+#     Step_Size[i,4] <- Sort_F[grep(SAMPLE_NAMES[i], Sort_F$FILE_NAME),3] }
+
+#   if (length(grep(SAMPLE_NAMES[i], MrkDps_F$FILE_NAME)) > 0) {
+#     Step_Run[i,5] <- "Y"
+#     Step_Size[i,5] <- MrkDps_F[grep(SAMPLE_NAMES[i], MrkDps_F$FILE_NAME),3] }
+
+#   if (length(grep(SAMPLE_NAMES[i], TrgtCrtr_F$FILE_NAME)) > 0) {
+#     Step_Run[i,6] <- "Y"
+#     Step_Size[i,6] <- TrgtCrtr_F[grep(SAMPLE_NAMES[i], TrgtCrtr_F$FILE_NAME),3] }
+
+#   if (length(grep(SAMPLE_NAMES[i], IndelRlgnr_F$FILE_NAME)) > 0) {
+#     Step_Run[i,7] <- "Y"
+#     Step_Size[i,7] <- IndelRlgnr_F[grep(SAMPLE_NAMES[i], IndelRlgnr_F$FILE_NAME),3] }
+
+#   if (length(grep(SAMPLE_NAMES[i], BsRecal_F$FILE_NAME)) > 0) {
+#     Step_Run[i,8] <- "Y"
+#     Step_Size[i,8] <- BsRecal_F[grep(SAMPLE_NAMES[i], BsRecal_F$FILE_NAME),3] }
+
+#   Step_Run[i,9] <- length(grep(SAMPLE_NAMES[i], PrntRds_F$FILE_NAME))
+#   Step_Size[i,9] <- sum(PrntRds_F[grep(SAMPLE_NAMES[i], PrntRds_F$FILE_NAME),3]) }
+
+# Step_Size[which(Step_Size[,9]==0),9] <- NA
+# Step_Size <- data.frame(FastQ=fastq_Size, Step_Size)
 
 ###############################
 ## TROUBLE SHOOTING!!! ########
