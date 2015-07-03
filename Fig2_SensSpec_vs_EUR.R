@@ -244,6 +244,9 @@ if ( P_VAL.IND<0.05 & P_VAL.IND>.01 ) { STAR.IND <- "*" } ; if ( P_VAL.IND<.01 )
 text( quantile(XLIM,.95),quantile(YLIM.NPV,.10),labels=paste(STAR.IND,"p =",formatC(P_VAL.IND, digits=2, format="e")),col=COLS["IND"],pos=2)
 dev.off()
 
+#####################################################################
+## END OF DOC #######################################################
+#####################################################################
 
 
 

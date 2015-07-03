@@ -19,12 +19,15 @@ DATE <- gsub("-","",Sys.Date())
 
 ## Set Path To Data
 PathToData <- "/Users/kstandis/Dropbox/Schork/JNJ11/Big_Call_Paper/DATA/Updates/"
+PathToRevData <- "/Users/kstandis/Dropbox/Schork/JNJ11/Big_Call_Paper/DATA/Revisions/Updates/"
 PathToSave <- paste("/Users/kstandis/Dropbox/Schork/JNJ11/Big_Call_Paper/PLOTS/Revisions/",DATE,"_Tech/",sep="" )
 dir.create( PathToSave )
 
 ## Load Job Info
 JB <- read.table(paste(PathToData,"Update_Jobs.txt",sep=""),sep="\t",header=T, stringsAsFactors=F)
-# Jobs <- read.table(paste(PathToData,"Update_Jobs.txt",sep=""), sep="\t", header=T, stringsAsFactors=F)
+ # Haplotypcaller Jobs
+HC.l <- read.table(paste(PathToRevData,"HC_WALLTIME_USED.CMP.3.txt",sep=""),sep="\t",header=F, stringsAsFactors=F)
+HC.I.l <- read.table(paste(PathToRevData,"HC_WALLTIME_USED.INC.3.txt",sep=""),sep="\t",header=F, stringsAsFactors=F)
 
 ## Load File Info
 FL1 <- read.table(paste(PathToData,"Update_Files_ALL_2013-09-12",sep=""),sep="\t",header=T)
@@ -134,6 +137,85 @@ JB$OUTPUT_FILE[ grep("_s$",JB$OUTPUT_FILE) ] <- paste( grep("_s$",JB$OUTPUT_FILE
 MG <- merge(x=JB,y=FILES,by.x="OUTPUT_FILE",by.y="FILE_NAME")
 MG <- merge(x=JB,y=FILES,by.x="OUTPUT_FILE",by.y="FILE_NAME", all.x=T)
 
+#####################################
+## Reorganize HC Job Stats ##########
+
+## COMPLETED RUNS ##
+
+## Get File Names/Info
+HC.files.1 <- as.character( HC.l[,1][seq(1,nrow(HC.l),4)] )
+HC.files.2 <- strsplit( HC.files.1, "_" )
+ # Group
+HC.files.grp <- unlist(lapply( HC.files.2, function(x) x[2] ))
+ # Region
+HC.files.chr <- unlist(lapply( HC.files.2, function(x) grep("PT",x,value=T) ))
+## Get # Cores & Samples in Command
+HC.meta.1 <- as.character( HC.l[,1][seq(2,nrow(HC.l),4)] )
+HC.meta.samps <- sapply( gregexpr( "-I", HC.meta.1 ), function(x) if( x[1]==-1 ){ 0 }else{ length(x) } )
+HC.meta.nct <- as.numeric(unlist(lapply( strsplit( unlist(lapply( strsplit( HC.meta.1, "-nct " ), function(x) x[2] )), " " ), function(x) x[1] )))
+## Get Runtimes
+HC.run.1 <- as.character( HC.l[,1][seq(4,nrow(HC.l),4)] )
+HC.run.secs <- as.numeric( unlist(lapply(strsplit( unlist(lapply(strsplit(HC.run.1,"runtime "),function(x) x[2])), " secs" ), function(x) x[1] ) ))
+HC.run.hours <- HC.run.secs / 3600
+HC.run.SUs <- HC.meta.nct * round(HC.run.hours,0)
+
+HC.CMP <- data.frame( GRP=HC.files.grp, CHR=HC.files.chr, SAMPS=HC.meta.samps, NCT=HC.meta.nct, RUN_SEC=HC.run.secs, RUN_HRS=HC.run.hours, SU=HC.run.SUs )
+
+## PARTIAL RUNS ##
+
+## Get File Names/Info
+HC.I.files.1 <- as.character( HC.I.l[,1][seq(1,nrow(HC.I.l),4)] )
+HC.I.files.2 <- strsplit( HC.I.files.1, "_" )
+ # Group
+HC.I.files.grp <- unlist(lapply( HC.I.files.2, function(x) x[2] ))
+ # Region
+HC.I.files.chr <- unlist(lapply( HC.I.files.2, function(x) grep("PT",x,value=T) ))
+## Get # Cores & Samples in Command
+HC.I.meta.1 <- as.character( HC.I.l[,1][seq(2,nrow(HC.I.l),4)] )
+HC.I.meta.samps <- sapply( gregexpr( "-I", HC.I.meta.1 ), function(x) if( x[1]==-1 ){ 0 }else{ length(x) } )
+HC.I.meta.nct <- as.numeric(unlist(lapply( strsplit( unlist(lapply( strsplit( HC.I.meta.1, "-nct " ), function(x) x[2] )), " " ), function(x) x[1] )))
+## Get Runtimes
+HC.I.run.1 <- as.character( HC.I.l[,1][seq(4,nrow(HC.I.l),4)] )
+ # Jobs that ran to completion
+HC.I.files.fin.which <- grep("Total",HC.I.run.1)
+HC.I.run.fin.secs <- as.numeric( unlist(lapply(strsplit( unlist(lapply(strsplit(HC.I.run.1[HC.I.files.fin.which],"runtime "),function(x) x[2])), " secs" ), function(x) x[1] ) ))
+HC.I.run.fin.hours <- HC.I.run.fin.secs / 3600
+ # Jobs that Failed Midway thru
+HC.I.files.mid.which <- grep("Total",HC.I.run.1, invert=T)
+HC.I.run.mid.hours.1 <- matrix( unlist(lapply( strsplit( HC.I.run.1[ HC.I.files.mid.which ], " +" ), function(x) x[7:8] ) ), ncol=2,byrow=T )
+HC.I.run.mid.hours <- as.numeric( HC.I.run.mid.hours.1[,1] )
+HC.I.run.mid.hours[which(HC.I.run.mid.hours.1[,2]=="d")] <- 24*HC.I.run.mid.hours[which(HC.I.run.mid.hours.1[,2]=="d")]
+HC.I.run.hours <- numeric(length(HC.I.run.1))
+HC.I.run.hours[HC.I.files.mid.which] <- HC.I.run.mid.hours
+HC.I.run.hours[HC.I.files.fin.which] <- HC.I.run.fin.hours
+ # Combine Runtimes for Failed & Finished Jobs
+HC.I.run.secs <- numeric( length(HC.I.run.1) )
+HC.I.run.secs[HC.I.files.fin.which] <- HC.I.run.fin.secs
+HC.I.run.secs[HC.I.files.mid.which] <- 3600 * HC.I.run.mid.hours
+HC.I.run.hours <- numeric( length(HC.I.run.1) )
+HC.I.run.hours[HC.I.files.fin.which] <- HC.I.run.fin.hours
+HC.I.run.hours[HC.I.files.mid.which] <- HC.I.run.mid.hours
+HC.I.run.SUs <- numeric( length(HC.I.run.1) )
+HC.I.run.SUs[HC.I.files.fin.which] <- HC.I.meta.nct[HC.I.files.fin.which] * round(HC.I.run.fin.hours,0)
+HC.I.run.SUs[HC.I.files.mid.which] <- HC.I.meta.nct[HC.I.files.mid.which] * round(HC.I.run.mid.hours,0)
+
+HC.I.CMP <- data.frame( GRP=HC.I.files.grp, CHR=HC.I.files.chr, SAMPS=HC.I.meta.samps, NCT=HC.I.meta.nct, RUN_SEC=HC.I.run.secs, RUN_HRS=HC.I.run.hours, SU=HC.I.run.SUs )
+
+## Compile Runtime & Stats for All Groups
+HC <- rbind( HC.CMP, HC.I.CMP )
+HC[,2] <- as.character(HC[,2])
+for ( i in c(1,3:ncol(HC)) ) { HC[,i] <- as.numeric(as.character(HC[,i])) }
+HC <- data.frame( HC, SU_per_Sample=HC$SU/HC$SAMPS )
+HC <- HC[ order(HC$CHR,decreasing=F), ] ; HC <- HC[ order(as.numeric(as.character(HC$GRP)),decreasing=F), ]
+ # Combine into Group & Region of Genome
+HC.SU.x.CHR.GRP <- aggregate( HC$SU, list(CHR=HC$CHR,GRP=HC$GRP), sum )
+HC.SU.x.CHR <- aggregate( HC$SU, list(CHR=HC$CHR), sum )
+HC.SU.x.GRP <- aggregate( HC$SU, list(GRP=HC$GRP), sum )
+HC.SUpSAMP.x.GRP <- data.frame( HC.SU.x.GRP, SAMPS=HC$SAMPS[ match( HC.SU.x.GRP$GRP, HC$GRP ) ] ) ; colnames(HC.SUpSAMP.x.GRP)[2] <- "SU"
+HC.SUpSAMP.x.GRP <- data.frame( HC.SUpSAMP.x.GRP, SU_per_Sample=HC.SUpSAMP.x.GRP$SU/HC.SUpSAMP.x.GRP$SAMP )
+ # Get Vector of per Sample Runtimes for Boxplot
+HC.perSamp <- rep( HC.SUpSAMP.x.GRP[,"SU_per_Sample"],HC.SUpSAMP.x.GRP[,"SAMPS"] )
+
 #####################################################################
 ## COMPILE STATS PER STEP ###########################################
 #####################################################################
@@ -216,8 +298,8 @@ By_Step$Command_per_Sample <- data.frame( STEP=colnames(Commands_Samp_Tab), MN=c
 By_Step$Cores_per_Command <- merge( aggregate(CORES_per_COMMAND ~ STEP,data=MG,mean), aggregate(CORES_per_COMMAND ~ STEP,data=MG,sd), by="STEP")
 colnames(By_Step$Cores_per_Command) <- c("STEP","MN","SD")
  # Commands/Node by Step
-By_Step$Command_per_Node <- merge( aggregate(COMMANDS_per_JOB ~ STEP,data=MG,mean), aggregate(COMMANDS_per_JOB ~ STEP,data=MG,sd), by="STEP")
-colnames(By_Step$Command_per_Node) <- c("STEP","MN","SD")
+# By_Step$Command_per_Node <- merge( aggregate(COMMANDS_per_JOB ~ STEP,data=MG,mean), aggregate(COMMANDS_per_JOB ~ STEP,data=MG,sd), by="STEP")
+# colnames(By_Step$Command_per_Node) <- c("STEP","MN","SD")
  # Wall_Time/Sample by Step
 By_Step$Walltime_per_Sample <- merge( aggregate(Wall ~ STEP,data=By_Sample,mean), aggregate(Wall ~ STEP,data=By_Sample,sd), by="STEP")
 By_Step$Walltime_per_Sample[,2:3] <- By_Step$Walltime_per_Sample[,2:3] / 3600
@@ -247,6 +329,7 @@ By_Step <- lapply( By_Step, function(x) x[RE_ORDER,] )
 
 #####################################
 ## PUT INTO SAMPLE ##################
+d <- 1
 table_cols <- c("Order","Step","Tool","Commands/Sample","Cores/Command","Commands/16cores","Wall_Time/Sample","CPU_Time/Sample","SUs/Sample","MEM/Command","VMEM/Command","Output_File/Sample")
 TABLE <- array( ,c( length(STEP_NAMES)+1,length(table_cols) ) )
 colnames(TABLE) <- table_cols ; rownames(TABLE) <- c("FQ",STEP_NAMES)
@@ -255,30 +338,36 @@ TABLE[,"Order"] <- 1:nrow(TABLE)-1
 TABLE[,"Step"] <- rownames(TABLE)
 TABLE[,"Tool"] <- c( "-","BWA","Samtools","Samtools","Samtools","PicardTools","GATK","GATK","GATK","GATK" )
  # Cores & Commands
-Print_Jobs <- paste( round(By_Step$Command_per_Sample$MN,2), "+/-", round(By_Step$Command_per_Sample$SD,2), sep="" )
+Print_Jobs <- paste( round(By_Step$Command_per_Sample$MN,d), "+/-", round(By_Step$Command_per_Sample$SD,d), sep="" )
 TABLE[,"Commands/Sample"] <- c( NA, Print_Jobs ) ; TABLE[,"Commands/Sample"][4:10] <- rep( c(1,4),c(6,1) )
-Print_Cores <- paste( round(By_Step$Cores_per_Command$MN,2), "+/-", round(By_Step$Cores_per_Command$SD,2), sep="" )
+Print_Cores <- paste( round(By_Step$Cores_per_Command$MN,d), "+/-", round(By_Step$Cores_per_Command$SD,d), sep="" )
 TABLE[,"Cores/Command"] <- c( NA, Print_Cores )
-Print_perNode <- paste( round(By_Step$Command_per_Node$MN,2), "+/-", round(By_Step$Command_per_Node$SD,2), sep="" )
+# Print_perNode <- paste( round(By_Step$Command_per_Node$MN,d), "+/-", round(By_Step$Command_per_Node$SD,d), sep="" )
+Print_perNode <- paste( round(16/By_Step$Cores_per_Command$MN,d), "+/-", round(16/By_Step$Cores_per_Command$SD,d), sep="" )
 TABLE[,"Commands/16cores"] <- c( NA, Print_perNode )
-TABLE[,"Commands/16cores"] <- 16 / TABLE[,"Cores/Command"]
+# TABLE[,"Commands/16cores"] <- c( NA, 16 / By_Step$Cores_per_Command$MN )
  # Time & SUs
-Print_Wall_Time <- paste( round(By_Step$Walltime_per_Sample$MN,2), "+/-", round(By_Step$Walltime_per_Sample$SD,2), sep="" )
+Print_Wall_Time <- paste( round(By_Step$Walltime_per_Sample$MN,d), "+/-", round(By_Step$Walltime_per_Sample$SD,d), sep="" )
 TABLE[,"Wall_Time/Sample"] <- c(NA, Print_Wall_Time)
-Print_CPU_Time <- paste( round(By_Step$CPUtime_per_Sample$MN,2), "+/-", round(By_Step$CPUtime_per_Sample$SD,2), sep="" )
+Print_CPU_Time <- paste( round(By_Step$CPUtime_per_Sample$MN,d), "+/-", round(By_Step$CPUtime_per_Sample$SD,d), sep="" )
 TABLE[,"CPU_Time/Sample"] <- c(NA, Print_CPU_Time)
-Print_SUs <- paste( round(By_Step$SUs_per_Sample$MN,2), "+/-", round(By_Step$SUs_per_Sample$SD,2), sep="" )
+Print_SUs <- paste( round(By_Step$SUs_per_Sample$MN,d), "+/-", round(By_Step$SUs_per_Sample$SD,d), sep="" )
 TABLE[,"SUs/Sample"] <- c(NA, Print_SUs)
  # Memory
-Print_MEM <- paste( round(By_Step$MEM_per_Command$MN,2), "+/-", round(By_Step$MEM_per_Command$SD,2), sep="" )
+Print_MEM <- paste( round(By_Step$MEM_per_Command$MN,d), "+/-", round(By_Step$MEM_per_Command$SD,d), sep="" )
 TABLE[,"MEM/Command"] <- c( NA, Print_MEM )
-Print_VMEM <- paste( round(By_Step$VMEM_per_Command$MN,2), "+/-", round(By_Step$VMEM_per_Command$SD,2), sep="" )
+Print_VMEM <- paste( round(By_Step$VMEM_per_Command$MN,d), "+/-", round(By_Step$VMEM_per_Command$SD,d), sep="" )
 TABLE[,"VMEM/Command"] <- c( NA, Print_VMEM )
  # File Size
-Print_Size <- paste( round(By_Step$FileSize_per_Sample$MN,2), "+/-", round(By_Step$FileSize_per_Sample$SD,2), sep="" )
+Print_Size <- paste( round(By_Step$FileSize_per_Sample$MN,d), "+/-", round(By_Step$FileSize_per_Sample$SD,d), sep="" )
 TABLE[,"Output_File/Sample"] <- c(NA, Print_Size )
 FQ_SIZE <- aggregate( as.numeric(fastq[,"FILE_SIZE_F"]), list( SAMPLE=fastq$SAMPLE_F), sum )[,2] / 1e9
-TABLE["FQ","Output_File/Sample"] <- paste( round(mean(FQ_SIZE),2), "+/-", round(sd(FQ_SIZE),2) )
+TABLE["FQ","Output_File/Sample"] <- paste( round(mean(FQ_SIZE),d), "+/-", round(sd(FQ_SIZE),d), sep="" )
+
+## Add in HaplotypeCaller Stats
+HC.SU.print <- paste( round(mean(HC.perSamp),d), "+/-", round(sd(HC.perSamp),d), sep="" )
+TABLE.HC.row <- c(10,"Haplo_Call","GATK", 4,16,1, NA,NA,HC.SU.print, NA,NA,NA )
+TABLE <- rbind( TABLE, TABLE.HC.row )
 
 #####################################
 ## SAVE COMPILED RESULTS ############
@@ -296,48 +385,113 @@ write.table( t(TABLE[,-1]), paste(PathToSave,"Summary_Stats_by_Step.transpose.cs
 ## CREATE PLOTS FOR FIGURE 1 ########################################
 #####################################################################
 
-#####################################
-## FIGURE 1A - STORAGE REQUIREMENTS #
-Step_Size <- reshape( By_Sample[,c("SAMPLE","SIZE","STEP")], v.names="SIZE", idvar="SAMPLE", timevar="STEP", direction="wide" )
-rownames(Step_Size) <- Step_Size[,"SAMPLE"]
-Step_Size <- Step_Size[,RE_ORDER+1] ; colnames(Step_Size) <- STEP_NAMES
-Step_Size <- data.frame( Fastq=FQ_SIZE*1e9, Step_Size )
-## Show Boxplot of the steps
-png(paste(PathToSave,"1a-Per_Sample_Storage.png",sep=""),width=1500,height=1000,pointsize=30)
-boxplot(Step_Size[,1:10]/1e9, col=PLOT_COLS[2], main="Storage Required Per Sample", ylab="Output File Size (GB)", xlab="Processing Step",pch="+", xaxt="n")
-text(x=1:10+.25, par("usr")[3] - 0.05*diff(range(Step_Size/1e9,na.rm=T)),labels=colnames(Step_Size), pos=2, srt=30, cex=1.05,xpd=T)
-axis(1, at=1:10, labels=F)
-abline( h=seq(0,1000,100), col=PLOT_COLS[9], lty=2,lwd=1)
-boxplot(Step_Size[,1:10]/1e9, col=PLOT_COLS[2], pch="+", xaxt="n", add=T)
-# for ( i in 1:10 ) { points( rep(i,nrow(Step_Size)), Step_Size[,i]/1e9, pch="+" ) }
+CREATE_PLOTS <- function() {
+  #####################################
+  ## FIGURE 1A - STORAGE per STEP #####
+
+  # Plot Size of Output File by Step
+  Step_Size <- reshape( By_Sample[,c("SAMPLE","SIZE","STEP")], v.names="SIZE", idvar="SAMPLE", timevar="STEP", direction="wide" )
+  rownames(Step_Size) <- Step_Size[,"SAMPLE"]
+  Step_Size <- Step_Size[,RE_ORDER+1] ; colnames(Step_Size) <- STEP_NAMES
+  Step_Size <- data.frame( Fastq=FQ_SIZE*1e9, Step_Size )
+  ## Show Boxplot of the steps
+  # png(paste(PathToSave,"1a-Per_Sample_Storage.# png",sep=""),width=1500,height=1000,pointsize=30)
+  boxplot(Step_Size[,1:10]/1e9, col=PLOT_COLS[2], main="Storage Required Per Sample", ylab="Output File Size (GB)", xlab="Processing Step",pch="+", xaxt="n")
+  text(x=1:10+.15, par("usr")[3] - 0.05*diff(range(Step_Size/1e9,na.rm=T)),labels=colnames(Step_Size), pos=2, srt=30, cex=1.05,xpd=T)
+  axis(1, at=1:10, labels=F)
+  abline( h=seq(0,1000,100), col=PLOT_COLS[9], lty=2,lwd=1)
+  boxplot(Step_Size[,1:10]/1e9, col=PLOT_COLS[2], pch="+", xaxt="n", add=T)
+  # for ( i in 1:10 ) { points( rep(i,nrow(Step_Size)), Step_Size[,i]/1e9, pch="+" ) }
+  # dev.off()
+
+  #####################################
+  ## FIGURE 1B - MAPPING EFFICIENCY ###
+
+  # Plot Mapping Cost vs File Size
+  MAP <- MG[ MG$STEP=="Map", ]
+  COLORS <- PLOT_COLS[c(4,6)] # c("slateblue3","tomato2")
+  COLORS.2 <- PLOT_COLS.4[c(4,6)]
+  CORE_COLS <- as.numeric(factor(MAP$CORES)) # ; names(CORE_COLS) <- c("8","16")
+   # Calculate fit for 8 and 16 cores
+  C.8 <- which( MAP$CORES==8 )
+  MOD.8 <- lm( MAP$SUs[C.8] ~ I(MAP$SIZE[C.8]/1e9) ) ; COEF.8 <- round( coef(MOD.8)[2], 3 )
+  MOD.16 <- lm( MAP$SUs[-C.8] ~ I(MAP$SIZE[-C.8]/1e9) ) ; COEF.16 <- round( coef(MOD.16)[2], 3 )
+  XLIM <- c(0,max(MAP$SIZE/1e9,na.rm=T))
+  YLIM <- c(0,max(MAP$SUs,na.rm=T))
+  # png(paste(PathToSave,"1b-Mapping_Efficiency.# png",sep=""),width=1000,height=1000, pointsize=30)
+  plot(0,0, type="n", xlim=XLIM, ylim=YLIM, xlab="Sam File Size (GB)", ylab="SUs (Cores-Hours)", main="Read Mapping Efficiency")
+  abline(h=seq(0,200,20), lty=2, ,lwd=1, col=PLOT_COLS[9] )
+  abline(v=seq(0,200,20), lty=2, ,lwd=1, col=PLOT_COLS[9] )
+  points( MAP$SIZE/1e9, MAP$SUs, pch="+", col=COLORS[CORE_COLS] )
+  abline( MOD.8, col=COLORS.2[1], lty=2, lwd=6 )
+  abline( MOD.16, col=COLORS.2[2], lty=2, lwd=6 )
+  legend("topleft",legend=c("8","16"),title="# Cores",pch="+",col=COLORS)
+  text( 0, c(55,50), labels=paste(c(8,16),"Cores:",c(COEF.8,COEF.16),"SU/GB"), col=COLORS.2, pos=4 )
+  # dev.off()
+
+  #####################################
+  ## FIGURE 1C - SU per STEP ##########
+
+  # Plot SUs per Sample by Step
+  Step_SU <- reshape( By_Sample[,c("SAMPLE","SUs_per_COMMAND","STEP")], v.names="SUs_per_COMMAND", idvar="SAMPLE", timevar="STEP", direction="wide" )
+  rownames(Step_SU) <- Step_SU[,"SAMPLE"]
+  Step_SU <- Step_SU[,RE_ORDER+1] ; colnames(Step_SU) <- STEP_NAMES
+  Step_SU <- data.frame( Step_SU, Haplo_Call=sample(HC.perSamp,nrow(Step_SU)) )
+  # png(paste(PathToSave,"1c-Per_Sample_Computing.# png",sep=""),width=1500,height=1000,pointsize=30)
+  boxplot(Step_SU, main="Computational Cost Per Sample", xlab="Step", ylab="SUs (Core-Hours)", xaxt="n", col=PLOT_COLS[2],pch="+")
+  text(x=1:ncol(Step_SU)+.15, par("usr")[3] - 0.05*diff(range(Step_SU,na.rm=T)),labels=colnames(Step_SU), pos=2, srt=30, cex=1.05,xpd=T)
+  axis(1, at=1:ncol(Step_SU), labels=F)
+  abline(h=seq(0,1e3,50), lty=2, ,lwd=1, col=PLOT_COLS[9] )
+  boxplot(Step_SU, col=PLOT_COLS[2],pch="+", add=T, xaxt="n")
+  for (i in 1:ncol(Step_SU)) { points(rep(i,438),Step_SU[,i], pch="+") }
+  # dev.off()
+
+  #####################################
+  ## FIGURE 1D - PRNTRDS EFFICIENCY ###
+
+  ## Plot Print Reads Cost vs File Size (color by # Cores)
+   # Get PrintReads Job Stats
+  PRNT_RDS <- MG[ MG$STEP=="PrntRds", c("CORES","SUs_per_COMMAND","SIZE") ]
+  PRNT_RDS$SIZE <- PRNT_RDS$SIZE / 1e9
+   # Set Parameters
+  XLIM <- range( PRNT_RDS$SIZE, na.rm=T )
+  YLIM <- range( PRNT_RDS$SUs_per_COMMAND, na.rm=T )
+  COLORS <- PLOT_COLS[c(4,6)] # c("slateblue3","tomato2")
+  COLORS.2 <- PLOT_COLS.4[c(4,6)]
+  CORE_COLS <- as.numeric(factor(PRNT_RDS$CORES)) # ; names(CORE_COLS) <- c("8","16")
+  MOD.8 <- lm( SUs_per_COMMAND ~ SIZE, data=PRNT_RDS, subset=PRNT_RDS$CORES==8 ) ; COEF.8 <- round( coef(MOD.8)[2], 3 )
+  MOD.16 <- lm( SUs_per_COMMAND ~ SIZE, data=PRNT_RDS, subset=PRNT_RDS$CORES==16 ) ; COEF.16 <- round( coef(MOD.16)[2], 3 )
+   # Make Plot
+  # png(paste(PathToSave,"1d-PrintReads_Efficiency.# png",sep=""),width=1000,height=1000,pointsize=30)
+  plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Recalibrated Bam File Size (GB)", ylab="SUs (Cores-Hours)", main="Print Reads Efficiency", xaxt="n")
+  axis(1, at=seq(0,70,10))
+  abline(h=seq(0,200,10), lty=2, ,lwd=1, col=PLOT_COLS[9] )
+  abline(v=seq(0,200,10), lty=2, ,lwd=1, col=PLOT_COLS[9] )
+  points( SUs_per_COMMAND ~ SIZE, data=PRNT_RDS, col=COLORS[CORE_COLS], pch="+" )
+  abline( MOD.8, col=COLORS.2[1], lty=2, lwd=6 )
+  abline( MOD.16, col=COLORS.2[2], lty=2, lwd=6 )
+  legend("topleft",legend=c("8","16"),title="# Cores",pch="+",col=COLORS)
+  text( 0, c(75,68), labels=paste(c(8,16),"Cores:",c(COEF.8,COEF.16),"SU/GB"), col=COLORS.2, pos=4 )
+  # dev.off()
+
+} # Close "CREATE_PLOTS" Function
+
+#####################################################################
+## PLOT ALL TOGETHER ################################################
+#####################################################################
+
+## Create File for Entire Figure
+png(paste(PathToSave,"1_FULL.png",sep=""),width=2500,height=2000,pointsize=40)
+ # Specify Layout
+layout( matrix(c(1,2,3,4), 2, 2, byrow = TRUE), widths=c(3,2), heights=c(1,1) )
+
+CREATE_PLOTS()
+
 dev.off()
 
-#####################################
-## FIGURE 1B - MAPPING EFFICIENCY ###
-MAP <- MG[ MG$STEP=="Map", ]
-COLORS <- PLOT_COLS[c(4,6)] # c("slateblue3","tomato2")
-COLORS.2 <- PLOT_COLS.4[c(4,6)]
-CORE_COLS <- as.numeric(factor(MAP$CORES)) # ; names(CORE_COLS) <- c("8","16")
- # Calculate fit for 8 and 16 cores
-C.8 <- which( MAP$CORES==8 )
-MOD.8 <- lm( MAP$SUs[C.8] ~ I(MAP$SIZE[C.8]/1e9) ) ; COEF.8 <- round( coef(MOD.8)[2], 3 )
-MOD.16 <- lm( MAP$SUs[-C.8] ~ I(MAP$SIZE[-C.8]/1e9) ) ; COEF.16 <- round( coef(MOD.16)[2], 3 )
-XLIM <- c(0,max(MAP$SIZE/1e9,na.rm=T))
-YLIM <- c(0,max(MAP$SUs,na.rm=T))
-png(paste(PathToSave,"1b-Mapping_Efficiency.png",sep=""),width=1000,height=1000, pointsize=30)
-plot(0,0, type="n", xlim=XLIM, ylim=YLIM, xlab="Sam File Size (GB)", ylab="SUs (Cores-Hours)", main="Read Mapping Efficiency")
-abline(h=seq(0,200,20), lty=2, ,lwd=1, col=PLOT_COLS[9] )
-abline(v=seq(0,200,20), lty=2, ,lwd=1, col=PLOT_COLS[9] )
-points( MAP$SIZE/1e9, MAP$SUs, pch="+", col=COLORS[CORE_COLS] )
-abline( MOD.8, col=COLORS.2[1], lty=2, lwd=6 )
-abline( MOD.16, col=COLORS.2[2], lty=2, lwd=6 )
-legend(20,80,legend=c("8","16"),title="# Cores",pch="+",col=COLORS)
-text( 0, c(55,50), labels=paste(c(8,16),"Cores:",c(COEF.8,COEF.16),"SU/GB"), col=COLORS.2, pos=4 )
-dev.off()
-
-##############################################################################################################################################################
-##  ##  LEFT OFF UPDATING CODE HERE!!!! 06/30/15  ##  ##  ##  ##  ##  ##  ##  ##  ##
-##############################################################################################################################################################
+#####################################################################
+## SUPPLEMENTAL PLOTS ###############################################
+#####################################################################
 
 # Add up total File Size for each Step and divide by 1000000000 (to convert to GB)
 # (To extrapolate for incomplete steps, find mean & multiply by 438)
@@ -360,166 +514,114 @@ png(paste(PathToSave,"2-Storage_Correlation.png",sep=""),width=2000,height=2000,
 pairs(Step_Size[,1:6]/1e9, col=PLOT_COLS[2], pch="+", main="Correlating File Size (GB) Between Steps")
 dev.off()
 
-##############################################################################################################################################################
-##############################################################################################################################################################
 
-###########################################################
-## COMPILE SOME COMPUTING NUMBERS #########################
-###########################################################
+#####################################################################
+## END OF DOC #######################################################
+#####################################################################
 
-STEP_NAMES <- c("Map", "Bam", "Merge", "Sort", "MrkDps", "TrgtCrtr", "IndelRlgnr", "BsRecal", "PrntRds")
-SAMPLE_NAMES <- unique(Jobs$SAMPLE)
 
-## Calculate total FQ size by Sample
-FQ_SIZE <- array(,dim=c(length(SAMPLE_NAMES),1))
-colnames(FQ_SIZE) <- "FQ_SIZE"
-rownames(FQ_SIZE) <- SAMPLE_NAMES
-#FQ_SIZE <- rep(0,length(SAMPLE_NAMES))
-#names(FQ_SIZE) <- SAMPLE_NAMES
-for (i in 1:length(SAMPLE_NAMES)) {
-  FQ_SIZE[i,1] <- sum(fastq$FILE_SIZE_F[grep(SAMPLE_NAMES[i], fastq$SAMPLE_F)])/1000000000
-} # Divide by 1e9 to convert to GB
+# ##############################################################################################################################################################
+# ##############################################################################################################################################################
 
-## Calculate SUs for the Jobs Array
-JOBS_WALL_SPLIT2 <- strsplit(as.character(Jobs$WALL_TIME), ":")
-JOBS_WALL_SPLIT <- t(sapply(JOBS_WALL_SPLIT2,"[",c(1:3)))
-JOBS_WALL_SEC <- 3600*as.numeric(JOBS_WALL_SPLIT[,1]) + 60*as.numeric(JOBS_WALL_SPLIT[,2]) + as.numeric(JOBS_WALL_SPLIT[,3])
+# #########################################
+# ## WHAT DO I WANT TO SHOW?? #############
+# #########################################
 
-JOBS_CPU_SPLIT2 <- strsplit(as.character(Jobs$CPU_TIME), ":")
-JOBS_CPU_SPLIT <- t(sapply(JOBS_CPU_SPLIT2,"[",c(1:3)))
-JOBS_CPU_SEC <- 3600*as.numeric(JOBS_CPU_SPLIT[,1]) + 60*as.numeric(JOBS_CPU_SPLIT[,2]) + as.numeric(JOBS_CPU_SPLIT[,3])
+# #1) Total Jobs & SUs broken up by Step (so far)
+# J1 <- J[which(J$STEP==STEP_NAMES[1]),]
+# J2 <- J[which(J$STEP==STEP_NAMES[2]),]
+# J3 <- J[which(J$STEP==STEP_NAMES[3]),]
+# J4 <- J[which(J$STEP==STEP_NAMES[4]),]
+# J5 <- J[which(J$STEP==STEP_NAMES[5]),]
+# J6 <- J[which(J$STEP==STEP_NAMES[6]),]
+# J7 <- J[which(J$STEP==STEP_NAMES[7]),]
+# J8 <- J[which(J$STEP==STEP_NAMES[8]),]
+# J9 <- J[which(J$STEP==STEP_NAMES[9]),]
 
-COMMANDS_SPLIT2 <- strsplit(as.character(Jobs$JOB_NAME), "_")
-COMMANDS_SPLIT <- as.numeric(sapply(COMMANDS_SPLIT2,"[",c(2)))
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Bam_Manual_1_20130919"] <- 6
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Bam_Manual_2_20130919"] <- 5
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_5_Test16"] <- 1
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_5b_Test15"] <- 15
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_r3_16a"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_r3_16b"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_6_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_7_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_8_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_9_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_10_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_11_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_12_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_13_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_14_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_15_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_16_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_17_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_18_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_19_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_20_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_21_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_22_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_23_16"] <- 16
-COMMANDS_SPLIT[Jobs$JOB_NAME=="Sort_24_6"] <- 16
+# # How Many Samples Done per Step So Far
+# SampByStep <- c(length(unique(J1$SAMPLE)), length(unique(J2$SAMPLE)), length(unique(J3$SAMPLE)), length(unique(J4$SAMPLE)), length(unique(J5$SAMPLE)), length(unique(J6$SAMPLE)), length(unique(J7$SAMPLE)), length(unique(J8$SAMPLE)), length(unique(J9$SAMPLE)))
+# # barplot(SampByStep, main="Samples Complete By Step", xlab="Processing Step", ylab="# Samples", names=STEP_NAMES, col="orange2", ylim=c(0,450))
 
-J <- data.frame(Jobs[c(1,2,3,4,7,8,9,14)], WALL_SEC=JOBS_WALL_SEC, WALLxCORES=JOBS_WALL_SEC*Jobs$CORES, CPU_SEC=JOBS_CPU_SEC, SU=round(JOBS_WALL_SEC*Jobs$CORES/3600,0), COMMperJOB=COMMANDS_SPLIT, SUperCOMM=round(JOBS_WALL_SEC*Jobs$CORES/3600,0)/COMMANDS_SPLIT)
+# # How Many SU's Per Step So Far
+# StepSUM <- c(sum(J1$SUperCOMM), sum(J2$SUperCOMM,na.rm=T), sum(J3$SUperCOMM), sum(J4$SUperCOMM,na.rm=T), sum(J5$SUperCOMM), sum(J6$SUperCOMM), sum(J7$SUperCOMM), sum(J8$SUperCOMM), sum(J9$SUperCOMM))
+# png(paste(PathToSave,"3-Total_Computing.png",sep=""),width=1500,height=1000,pointsize=30)
+# barplot(StepSUM, main="Total Computational Cost", xlab="Processing Step", ylab="SUs (Core-Hours)", xaxt="n", ylim=c(0,100000), col=PLOT_COLS[2], width=.8,space=.25 )
+# text(x=1:9-.25, par("usr")[3] - 0.05*diff(range(StepSUM,na.rm=T)),labels=colnames(Step_Size)[2:10], pos=2, srt=30, cex=1.05,xpd=T)
+# # axis(2, at=seq(0,1e5,1e4), labels=as.character(formatC( seq(0,1e5,1e4), format="e", digits=0)), las=2)
+# axis(1, at=1:9-.4, labels=F)
+# abline(h=seq(0,1e5,1e4), lty=2, ,lwd=1, col=PLOT_COLS[9] )
+# barplot(StepSUM, ylim=c(0,1e5), col=PLOT_COLS[2], add=T, xaxt="n", width=.8,space=.25 )
+# dev.off()
+# sum(StepSUM)
 
-#write.table(J, file="/home/kris/Desktop/Link to Dropbox/Schork/JNJ11/Usage/Jobs.xls", sep="\t", col.names=T, row.names=F, quote=F)
+# #2) How many SUs per sample per Step
+# By_Sample1 <- array(NA,dim=c(length(SAMPLE_NAMES),9))
+# colnames(By_Sample1) <- c("MAP_SU", "BAM_SU", "MERGE_SU", "SORT_SU", "DUPS_SU", "TRGT_SU", "INDEL_SU", "RECAL_SU", "PRINT_SU")
+# rownames(By_Sample1) <- SAMPLE_NAMES
+# for (i in 1:length(SAMPLE_NAMES)) {
+#   sample_info <- J[which(J$SAMPLE==SAMPLE_NAMES[i]),]
+#   By_Sample1[i,1] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[1])],na.rm=T)
+#   By_Sample1[i,2] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[2])],na.rm=T)
+#   By_Sample1[i,3] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[3])],na.rm=T)
+#   By_Sample1[i,4] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[4])],na.rm=T)
+#   By_Sample1[i,5] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[5])],na.rm=T)
+#   By_Sample1[i,6] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[6])],na.rm=T)
+#   By_Sample1[i,7] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[7])],na.rm=T)
+#   By_Sample1[i,8] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[8])],na.rm=T)
+#   By_Sample1[i,9] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[9])],na.rm=T) }
+# for (i in 1:ncol(By_Sample1)) {
+#   By_Sample1[which(By_Sample1[,i]==0),i] <- NA }
+# By_Sample <- data.frame(By_Sample1)
+# By_Sample_w_FQ <- data.frame(FQ_SIZE=FQ_SIZE, By_Sample1)
 
-#########################################
-## WHAT DO I WANT TO SHOW?? #############
-#########################################
+# # Plot SUs per Sample by Step
+# png(paste(PathToSave,"3-Per_Sample_Computing.png",sep=""),width=1500,height=1000,pointsize=30)
+# boxplot(By_Sample, main="Computational Cost Per Sample", xlab="Processing Step", ylab="SUs (Core-Hours)", xaxt="n", col=PLOT_COLS[2],pch="+")
+# text(x=1:9+.1, par("usr")[3] - 0.05*diff(range(By_Sample,na.rm=T)),labels=colnames(Step_Size)[2:10], pos=2, srt=30, cex=1.05,xpd=T)
+# axis(1, at=1:9, labels=F)
+# abline(h=seq(0,1e3,50), lty=2, ,lwd=1, col=PLOT_COLS[9] )
+# boxplot(By_Sample, col=PLOT_COLS[2],pch="+", add=T, xaxt="n")
+# for (i in 1:9) {
+#   points(rep(i,438),By_Sample[,i], pch="+") }
+# dev.off()
 
-#1) Total Jobs & SUs broken up by Step (so far)
-J1 <- J[which(J$STEP==STEP_NAMES[1]),]
-J2 <- J[which(J$STEP==STEP_NAMES[2]),]
-J3 <- J[which(J$STEP==STEP_NAMES[3]),]
-J4 <- J[which(J$STEP==STEP_NAMES[4]),]
-J5 <- J[which(J$STEP==STEP_NAMES[5]),]
-J6 <- J[which(J$STEP==STEP_NAMES[6]),]
-J7 <- J[which(J$STEP==STEP_NAMES[7]),]
-J8 <- J[which(J$STEP==STEP_NAMES[8]),]
-J9 <- J[which(J$STEP==STEP_NAMES[9]),]
+# # Boxplot of PrintReads step by # Cores
+# # boxplot(J9$SU ~ J9$CORES)
 
-# How Many Samples Done per Step So Far
-SampByStep <- c(length(unique(J1$SAMPLE)), length(unique(J2$SAMPLE)), length(unique(J3$SAMPLE)), length(unique(J4$SAMPLE)), length(unique(J5$SAMPLE)), length(unique(J6$SAMPLE)), length(unique(J7$SAMPLE)), length(unique(J8$SAMPLE)), length(unique(J9$SAMPLE)))
-# barplot(SampByStep, main="Samples Complete By Step", xlab="Processing Step", ylab="# Samples", names=STEP_NAMES, col="orange2", ylim=c(0,450))
+# # Plot file size vs SUs for Print Reads Step
+# PRNT_RDS_MG <- merge(Jobs, PrntRds_F, by="FILE_NAME")
+#   # Calculate SUs
+# Split <- strsplit(as.character(PRNT_RDS_MG$WALL_TIME), ":")
+# Times <- t(sapply(Split,"[",1:3))
+# Secs <- 3600*as.numeric(Times[,1]) + 60*as.numeric(Times[,2]) + as.numeric(Times[,3])
+# SUs <- round(Secs*PRNT_RDS_MG$CORES/3600,0)
+# SUs[which(SUs==0)] <- 1
+# COLORS <- PLOT_COLS[c(4,6)] # c("slateblue3","tomato2")
+# COLORS.2 <- PLOT_COLS.4[c(4,6)]
+# CORE_COLS <- as.numeric(factor(MG$CORES)) # ; names(CORE_COLS) <- c("8","16")
+#  # Calculate fit for 8 and 16 cores
+# C.8 <- which( PRNT_RDS_MG$CORES==8 )
+# MOD.8 <- lm( SUs[C.8] ~ I(PRNT_RDS_MG$SIZE[C.8]/1e9) ) ; COEF.8 <- round( coef(MOD.8)[2], 3 )
+# MOD.16 <- lm( SUs[-C.8] ~ I(PRNT_RDS_MG$SIZE[-C.8]/1e9) ) ; COEF.16 <- round( coef(MOD.16)[2], 3 )
+# CORE_COLS <- as.numeric(factor(PRNT_RDS_MG$CORES)) # ; names(CORE_COLS) <- c("8","16")
+# png(paste(PathToSave,"4-PrintReads_Efficiency.png",sep=""),width=1000,height=1000,pointsize=30)
+# plot(PRNT_RDS_MG$SIZE/1e9, SUs, col=COLORS[CORE_COLS], pch="+", xlab="Recalibrated Bam File Size (GB)", ylab="SUs (Cores-Hours)", main="Print Reads Efficiency", xaxt="n")
+# axis(1, at=seq(0,70,10))
+# abline(h=seq(0,200,10), lty=2, ,lwd=1, col=PLOT_COLS[9] )
+# abline(v=seq(0,200,10), lty=2, ,lwd=1, col=PLOT_COLS[9] )
+# points( PRNT_RDS_MG$SIZE/1e9, SUs, pch="+", col=COLORS[CORE_COLS] )
+# abline( MOD.8, col=COLORS.2[1], lty=2, lwd=6 )
+# abline( MOD.16, col=COLORS.2[2], lty=2, lwd=6 )
+# legend(10,100,legend=c("8","16"),title="# Cores",pch="+",col=COLORS)
+# text( 0, c(55,50), labels=paste(c(8,16),"Cores:",c(COEF.8,COEF.16),"SU/GB"), col=COLORS.2, pos=4 )
+# dev.off()
 
-# How Many SU's Per Step So Far
-StepSUM <- c(sum(J1$SUperCOMM), sum(J2$SUperCOMM,na.rm=T), sum(J3$SUperCOMM), sum(J4$SUperCOMM,na.rm=T), sum(J5$SUperCOMM), sum(J6$SUperCOMM), sum(J7$SUperCOMM), sum(J8$SUperCOMM), sum(J9$SUperCOMM))
-png(paste(PathToSave,"3-Total_Computing.png",sep=""),width=1500,height=1000,pointsize=30)
-barplot(StepSUM, main="Total Computational Cost", xlab="Processing Step", ylab="SUs (Core-Hours)", xaxt="n", ylim=c(0,100000), col=PLOT_COLS[2], width=.8,space=.25 )
-text(x=1:9-.25, par("usr")[3] - 0.05*diff(range(StepSUM,na.rm=T)),labels=colnames(Step_Size)[2:10], pos=2, srt=30, cex=1.05,xpd=T)
-# axis(2, at=seq(0,1e5,1e4), labels=as.character(formatC( seq(0,1e5,1e4), format="e", digits=0)), las=2)
-axis(1, at=1:9-.4, labels=F)
-abline(h=seq(0,1e5,1e4), lty=2, ,lwd=1, col=PLOT_COLS[9] )
-barplot(StepSUM, ylim=c(0,1e5), col=PLOT_COLS[2], add=T, xaxt="n", width=.8,space=.25 )
-dev.off()
-sum(StepSUM)
-
-#2) How many SUs per sample per Step
-By_Sample1 <- array(NA,dim=c(length(SAMPLE_NAMES),9))
-colnames(By_Sample1) <- c("MAP_SU", "BAM_SU", "MERGE_SU", "SORT_SU", "DUPS_SU", "TRGT_SU", "INDEL_SU", "RECAL_SU", "PRINT_SU")
-rownames(By_Sample1) <- SAMPLE_NAMES
-for (i in 1:length(SAMPLE_NAMES)) {
-  sample_info <- J[which(J$SAMPLE==SAMPLE_NAMES[i]),]
-  By_Sample1[i,1] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[1])],na.rm=T)
-  By_Sample1[i,2] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[2])],na.rm=T)
-  By_Sample1[i,3] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[3])],na.rm=T)
-  By_Sample1[i,4] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[4])],na.rm=T)
-  By_Sample1[i,5] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[5])],na.rm=T)
-  By_Sample1[i,6] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[6])],na.rm=T)
-  By_Sample1[i,7] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[7])],na.rm=T)
-  By_Sample1[i,8] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[8])],na.rm=T)
-  By_Sample1[i,9] <- sum(sample_info$SUperCOMM[which(sample_info$STEP==STEP_NAMES[9])],na.rm=T) }
-for (i in 1:ncol(By_Sample1)) {
-  By_Sample1[which(By_Sample1[,i]==0),i] <- NA }
-By_Sample <- data.frame(By_Sample1)
-By_Sample_w_FQ <- data.frame(FQ_SIZE=FQ_SIZE, By_Sample1)
-
-# Plot SUs per Sample by Step
-png(paste(PathToSave,"3-Per_Sample_Computing.png",sep=""),width=1500,height=1000,pointsize=30)
-boxplot(By_Sample, main="Computational Cost Per Sample", xlab="Processing Step", ylab="SUs (Core-Hours)", xaxt="n", col=PLOT_COLS[2],pch="+")
-text(x=1:9+.1, par("usr")[3] - 0.05*diff(range(By_Sample,na.rm=T)),labels=colnames(Step_Size)[2:10], pos=2, srt=30, cex=1.05,xpd=T)
-axis(1, at=1:9, labels=F)
-abline(h=seq(0,1e3,50), lty=2, ,lwd=1, col=PLOT_COLS[9] )
-boxplot(By_Sample, col=PLOT_COLS[2],pch="+", add=T, xaxt="n")
-for (i in 1:9) {
-  points(rep(i,438),By_Sample[,i], pch="+") }
-dev.off()
-
-# Boxplot of PrintReads step by # Cores
-# boxplot(J9$SU ~ J9$CORES)
-
-# Plot file size vs SUs for Print Reads Step
-PRNT_RDS_MG <- merge(Jobs, PrntRds_F, by="FILE_NAME")
-  # Calculate SUs
-Split <- strsplit(as.character(PRNT_RDS_MG$WALL_TIME), ":")
-Times <- t(sapply(Split,"[",1:3))
-Secs <- 3600*as.numeric(Times[,1]) + 60*as.numeric(Times[,2]) + as.numeric(Times[,3])
-SUs <- round(Secs*PRNT_RDS_MG$CORES/3600,0)
-SUs[which(SUs==0)] <- 1
-COLORS <- PLOT_COLS[c(4,6)] # c("slateblue3","tomato2")
-COLORS.2 <- PLOT_COLS.4[c(4,6)]
-CORE_COLS <- as.numeric(factor(MG$CORES)) # ; names(CORE_COLS) <- c("8","16")
- # Calculate fit for 8 and 16 cores
-C.8 <- which( PRNT_RDS_MG$CORES==8 )
-MOD.8 <- lm( SUs[C.8] ~ I(PRNT_RDS_MG$SIZE[C.8]/1e9) ) ; COEF.8 <- round( coef(MOD.8)[2], 3 )
-MOD.16 <- lm( SUs[-C.8] ~ I(PRNT_RDS_MG$SIZE[-C.8]/1e9) ) ; COEF.16 <- round( coef(MOD.16)[2], 3 )
-CORE_COLS <- as.numeric(factor(PRNT_RDS_MG$CORES)) # ; names(CORE_COLS) <- c("8","16")
-png(paste(PathToSave,"4-PrintReads_Efficiency.png",sep=""),width=1000,height=1000,pointsize=30)
-plot(PRNT_RDS_MG$SIZE/1e9, SUs, col=COLORS[CORE_COLS], pch="+", xlab="Recalibrated Bam File Size (GB)", ylab="SUs (Cores-Hours)", main="Print Reads Efficiency", xaxt="n")
-axis(1, at=seq(0,70,10))
-abline(h=seq(0,200,10), lty=2, ,lwd=1, col=PLOT_COLS[9] )
-abline(v=seq(0,200,10), lty=2, ,lwd=1, col=PLOT_COLS[9] )
-points( PRNT_RDS_MG$SIZE/1e9, SUs, pch="+", col=COLORS[CORE_COLS] )
-abline( MOD.8, col=COLORS.2[1], lty=2, lwd=6 )
-abline( MOD.16, col=COLORS.2[2], lty=2, lwd=6 )
-legend(10,100,legend=c("8","16"),title="# Cores",pch="+",col=COLORS)
-text( 0, c(55,50), labels=paste(c(8,16),"Cores:",c(COEF.8,COEF.16),"SU/GB"), col=COLORS.2, pos=4 )
-dev.off()
-
-#3) Extrapolate to Estimate How Many SUs will be required for each step
-MEANS <- apply(By_Sample, 2, mean, na.rm=T)
-EXTRAP <- MEANS*438
-# x11()
-# barplot(EXTRAP, main="Extrapolation of Mean Values for Total CPU Usage", xlab="Processing Step", ylab="SUs", names=STEP_NAMES, col="green4")
-# sum(EXTRAP)
+# #3) Extrapolate to Estimate How Many SUs will be required for each step
+# MEANS <- apply(By_Sample, 2, mean, na.rm=T)
+# EXTRAP <- MEANS*438
+# # x11()
+# # barplot(EXTRAP, main="Extrapolation of Mean Values for Total CPU Usage", xlab="Processing Step", ylab="SUs", names=STEP_NAMES, col="green4")
+# # sum(EXTRAP)
 
 
 
@@ -586,35 +688,35 @@ EXTRAP <- MEANS*438
 # Step_Size[which(Step_Size[,9]==0),9] <- NA
 # Step_Size <- data.frame(FastQ=fastq_Size, Step_Size)
 
-###############################
-## TROUBLE SHOOTING!!! ########
-###############################
+# ###############################
+# ## TROUBLE SHOOTING!!! ########
+# ###############################
 
-plot(Step_Size[,1:2])
-PERC_10 <- Step_Size[,2]/Step_Size[,1]
-Temp <- Step_Size[which(PERC_10<3.5),]
-CHECK_MAP <- c()
-for (i in rownames(Temp)) {
-CHECK_MAP <- rbind(CHECK_MAP, FILES_930[grep(i, FILES_930$FILE_NAME),], FILES_914[grep(i, FILES_914$FILE_NAME),]) }
+# plot(Step_Size[,1:2])
+# PERC_10 <- Step_Size[,2]/Step_Size[,1]
+# Temp <- Step_Size[which(PERC_10<3.5),]
+# CHECK_MAP <- c()
+# for (i in rownames(Temp)) {
+# CHECK_MAP <- rbind(CHECK_MAP, FILES_930[grep(i, FILES_930$FILE_NAME),], FILES_914[grep(i, FILES_914$FILE_NAME),]) }
 
-plot(Step_Size[,2:3])
-PERC_21 <- Step_Size[,3]/Step_Size[,2]
-Temp <- Step_Size[which(PERC_21<.3),]
-CHECK_BAM <- c()
-for (i in rownames(Temp)) {
-CHECK_BAM <- rbind(CHECK_BAM, FILES_930[grep(i, FILES_930$FILE_NAME),], FILES_914[grep(i, FILES_914$FILE_NAME),]) }
+# plot(Step_Size[,2:3])
+# PERC_21 <- Step_Size[,3]/Step_Size[,2]
+# Temp <- Step_Size[which(PERC_21<.3),]
+# CHECK_BAM <- c()
+# for (i in rownames(Temp)) {
+# CHECK_BAM <- rbind(CHECK_BAM, FILES_930[grep(i, FILES_930$FILE_NAME),], FILES_914[grep(i, FILES_914$FILE_NAME),]) }
 
-plot(Step_Size[,3:4])
-PERC_32 <- Step_Size[,4]/Step_Size[,3]
-Temp <- Step_Size[which(PERC_32<.3),]
-CHECK_MERGE <- c()
-for (i in rownames(Temp)) {
-CHECK_MERGE <- rbind(CHECK_MERGE, FILES_930[grep(i, FILES_930$FILE_NAME),], FILES_914[grep(i, FILES_914$FILE_NAME),]) }
+# plot(Step_Size[,3:4])
+# PERC_32 <- Step_Size[,4]/Step_Size[,3]
+# Temp <- Step_Size[which(PERC_32<.3),]
+# CHECK_MERGE <- c()
+# for (i in rownames(Temp)) {
+# CHECK_MERGE <- rbind(CHECK_MERGE, FILES_930[grep(i, FILES_930$FILE_NAME),], FILES_914[grep(i, FILES_914$FILE_NAME),]) }
 
-plot(Step_Size[,c(1,4)])
-PERC_30 <- Step_Size[,4]/Step_Size[,1]
-Temp <- Step_Size[which(PERC_30<.3),]
-CHECK_MERGE_FQ <- c()
-for (i in rownames(Temp)) {
-CHECK_MERGE_FQ <- rbind(CHECK_MERGE_FQ, FILES_930[grep(i, FILES_930$FILE_NAME),], FILES_914[grep(i, FILES_914$FILE_NAME),]) }
+# plot(Step_Size[,c(1,4)])
+# PERC_30 <- Step_Size[,4]/Step_Size[,1]
+# Temp <- Step_Size[which(PERC_30<.3),]
+# CHECK_MERGE_FQ <- c()
+# for (i in rownames(Temp)) {
+# CHECK_MERGE_FQ <- rbind(CHECK_MERGE_FQ, FILES_930[grep(i, FILES_930$FILE_NAME),], FILES_914[grep(i, FILES_914$FILE_NAME),]) }
 
