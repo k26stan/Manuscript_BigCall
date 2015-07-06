@@ -63,12 +63,14 @@ png( paste(PathToSave,"HC_Sites_v_Time.",FILE_TAG,".png",sep=""), height=1000,wi
 COLS.which <- colorRampPalette(PLOT_COLS[1:7])(length(Grp_Size.uniq))
 COLS <- COLS.which[factor(Grp_Size)]
 XLIM <- range( lapply(DAT, function(x) range(x$RUN$SEC,na.rm=T) ) )
-XTICK <- seq(0,XLIM[2]+3600,3600)
+BY <- 5*3600
+XTICK <- seq(0,XLIM[2]+BY,BY)
 YLIM <- range( lapply(DAT, function(x) range(x$RUN$LOC,na.rm=T) ) )
 ## Create Plot
 plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Walltime (Hrs)",ylab="Sites", main=paste("ProgressMeter -",FILE_TAG), xaxt="n" )
-axis( 1, at=XTICK, label=1:length(XTICK) )
-abline( v=seq(0,XLIM[2]+1800,1800), lty=3,col="grey50",lwd=1 )
+axis( 1, at=XTICK, label=seq(0,max(XTICK)/3600,BY/3600) )
+BY <- 3600
+abline( v=seq(0,XLIM[2]+BY,BY), lty=3,col="grey50",lwd=1 )
 abline( h=seq(0,YLIM[2]+1e7,1e7), lty=3,col="grey50",lwd=1 )
 ## Add Data
 for ( f in 1:length(DAT) ) {
@@ -76,8 +78,8 @@ for ( f in 1:length(DAT) ) {
 	xvals <- DAT[[name]]$RUN$SEC
 	yvals <- DAT[[name]]$RUN$LOC
 	final <- DAT[[name]]$FIN
-	points( xvals, yvals, col=COLS[f], type="l",lwd=2 )
-	points( final["Secs"], final["Sites"], col=COLS[f], pch=10, lwd=2,cex=1.5 )
+	points( xvals, yvals, col=COLS[f], type="l",lwd=3 )
+	points( final["Secs"], final["Sites"], col=COLS[f], pch=10, lwd=3,cex=1.5 )
 }
  # Legend
 legend( "bottomright", fill=COLS.which,legend=levels(factor(Grp_Size)), bg="white",title="Group Size" )
@@ -109,18 +111,18 @@ abline( v=c(Grp_Size.uniq,50,100,200,300,400,437), lty=3,col="grey50",lwd=1 )
 Grp_Size.seq <- seq( 1, 5*max(Grp_Size.uniq), 1 )
 MOD <- nls( SU ~ a + b^SIZE, data=FINAL, start=list(a=0,b=1.01))
 MOD.q <- lm( SU ~ I(SIZE^2)+SIZE, data=FINAL )
-lines( Grp_Size.seq, predict(MOD.q,list(SIZE=Grp_Size.seq)), col=COLS[1], lwd=2 )
+lines( Grp_Size.seq, predict(MOD.q,list(SIZE=Grp_Size.seq)), col=COLS[1], lwd=3 )
 MOD.l <- lm( SU ~ SIZE, data=FINAL )
-lines( Grp_Size.seq, predict(MOD.l,list(SIZE=Grp_Size.seq)), col=COLS[2], lwd=2,lty=2)
+lines( Grp_Size.seq, predict(MOD.l,list(SIZE=Grp_Size.seq)), col=COLS[2], lwd=3,lty=2 )
  # Summarize Fits
 ADJ.q <- round( summary(MOD.q)$adj.r.squared, 4)
 ADJ.l <- round( summary(MOD.l)$adj.r.squared, 4)
 text( quantile(XLIM,.01),quantile(YLIM,.76), label=paste("Quad: Adj.R2=",ADJ.q,sep=""),col=COLS[1], pos=4 )
 text( quantile(XLIM,.01),quantile(YLIM,.70), label=paste("Linr: Adj.R2=",ADJ.l,sep=""),col=COLS[2], pos=4 )
  # Plot Actual Data
-points( SU ~ SIZE, data=FINAL, col=COLS[3], pch="+",cex=1.5,lwd=2 )
+points( SU ~ SIZE, data=FINAL, col=COLS[3], pch="+",cex=1.5,lwd=3 )
  # Legend
-legend("topleft",col=COLS[1:2],legend=c("Quad","Lin"),title="Fits",lty=c(1,2),lwd=2 )
+legend("topleft",col=COLS[1:2],legend=c("Quad","Lin"),title="Fits",lty=c(1,2),lwd=3 )
 
 ## Plot Per Sample Numbers (Run Time vs Group Size)
  # Per Sample Parameters
@@ -133,16 +135,16 @@ abline( v=c(Grp_Size.uniq,50,100,200,300,400,437), lty=3,col="grey50",lwd=1 )
 axis( 1, at=c(Grp_Size.uniq,50,100,200,300,400,437) )
  # Plot Fits
 MOD.q.2 <- lm( SU_SAMP ~ I(1/SIZE)+SIZE, data=FINAL )
-lines( Grp_Size.seq, predict(MOD.q.2,list(SIZE=Grp_Size.seq)), col=COLS[1], lwd=2 )
+lines( Grp_Size.seq, predict(MOD.q.2,list(SIZE=Grp_Size.seq)), col=COLS[1], lwd=3 )
 MOD.l.2 <- lm( SU_SAMP ~ I(1/SIZE), data=FINAL )
-lines( Grp_Size.seq, predict(MOD.l.2,list(SIZE=Grp_Size.seq)), col=COLS[2], lwd=2 )
+lines( Grp_Size.seq, predict(MOD.l.2,list(SIZE=Grp_Size.seq)), col=COLS[2], lwd=3,lty=2 )
  # Summarize Fits
 ADJ.q.2 <- round( summary(MOD.q.2)$adj.r.squared, 4)
 ADJ.l.2 <- round( summary(MOD.l.2)$adj.r.squared, 4)
 text( quantile(XLIM,.01),quantile(YLIM,.26), label=paste("Quad: Adj.R2=",ADJ.q.2,sep=""),col=COLS[1], pos=4 )
 text( quantile(XLIM,.01),quantile(YLIM,.20), label=paste("Linr: Adj.R2=",ADJ.l.2,sep=""),col=COLS[2], pos=4 )
  # Plot Actual Data
-points( SU_SAMP ~ SIZE, data=FINAL, col=COLS[3], pch="+",cex=1.5,lwd=2 )
+points( SU_SAMP ~ SIZE, data=FINAL, col=COLS[3], pch="+",cex=1.5,lwd=3 )
 
 dev.off()
 

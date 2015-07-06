@@ -71,21 +71,28 @@ for ( f in 1:length(File_List) ) {
 	# Load File
 	RAW[[name]] <- readLines( paste(PathToData,file,sep="") )
 	# Get Final Run Stats
-	Final.site <- strsplit( RAW[[name]][grep("done",RAW[[name]])], " +" )[[1]][6]
-	Final.sec <- strsplit( RAW[[name]][grep("done",RAW[[name]])+1], " +" )[[1]][7]
-	Final <- as.numeric(c( Final.site, Final.sec)) ; names(Final) <- c("Sites","Secs")
+	if ( any(grepl("done",RAW[[name]])) ) {
+		Incomplete <- F
+		Final.site <- strsplit( RAW[[name]][grep("done",RAW[[name]])], " +" )[[1]][6]
+		Final.sec <- strsplit( RAW[[name]][grep("done",RAW[[name]])+1], " +" )[[1]][7]
+		Final <- as.numeric(c( Final.site, Final.sec)) ; names(Final) <- c("Sites","Secs")
+		Split.1 <- strsplit( RAW[[name]][4:(grep("done",RAW[[name]])-1)], " +" )
+	}else{
+		Incomplete <- T
+		Split.1 <- strsplit( RAW[[name]][4:length(RAW[[name]])], " +" )
+	}
 	# Get Running Progress
-	Split.1 <- strsplit( RAW[[name]][4:(grep("done",RAW[[name]])-1)], " +" )
 	Split.loc <- as.numeric(unlist(lapply( strsplit( unlist(lapply(Split.1,function(x)x[5])), ":"), function(x)x[2] )))
 	Split.time.1 <- matrix( unlist(lapply(Split.1,function(x)x[7:8])), ncol=2,byrow=T )
 	Split.time <- as.numeric( Split.time.1[,1] )
 	Split.time[which(Split.time.1[,2]=="m")] <- 60 * Split.time[which(Split.time.1[,2]=="m")]
 	Split.time[which(Split.time.1[,2]=="h")] <- 3600 * Split.time[which(Split.time.1[,2]=="h")]
 	Split.time[which(Split.time.1[,2]=="d")] <- 24* 3600 * Split.time[which(Split.time.1[,2]=="d")]
+	if ( Incomplete==T ) { Final <- c( Split.loc[length(Split.loc)], Split.time[length(Split.time)] ) ; names(Final) <- c("Sites","Secs") }
 	# Combine Stats
 	RUN <- data.frame( LOC=Split.loc, SEC=Split.time )
 	TAGS <- c( Grp_Size[f], Iter[f] )
-	COMPILE <- list( FIN=Final, RUN=RUN, TAG=TAGS )
+	COMPILE <- list( FIN=Final, RUN=RUN, TAG=TAGS, INC=Incomplete )
 	DAT[[name]] <- COMPILE
 }
 
@@ -133,9 +140,9 @@ PLOT_SS <- function() {
 	 # Add P-Values to Plot
 	STAR.SNP <- STAR.IND <- " "
 	if ( P_VAL.SNP<0.05 & P_VAL.SNP>.01 ) { STAR.SNP <- "*" } ; if ( P_VAL.SNP<.01 ) { STAR.SNP <- "**" }
-	text( quantile(XLIM,.95),quantile(YLIM.SENS,.05),labels=paste(STAR.SNP,"p =",formatC(P_VAL.SNP, digits=2, format="e")),col=COLS["SNP"],pos=2)
+	text( quantile(XLIM,.99),quantile(YLIM.SENS,.05),labels=paste(STAR.SNP,"p =",formatC(P_VAL.SNP, digits=2, format="e")),col=COLS["SNP"],pos=2)
 	if ( P_VAL.IND<0.05 & P_VAL.IND>.01 ) { STAR.IND <- "*" } ; if ( P_VAL.IND<.01 ) { STAR.IND <- "**" }
-	text( quantile(XLIM,.95),quantile(YLIM.SENS,.10),labels=paste(STAR.IND,"p =",formatC(P_VAL.IND, digits=2, format="e")),col=COLS["IND"],pos=2)
+	text( quantile(XLIM,.99),quantile(YLIM.SENS,.10),labels=paste(STAR.IND,"p =",formatC(P_VAL.IND, digits=2, format="e")),col=COLS["IND"],pos=2)
 	## Specificity
 	 # Calculate Resids vs Chr
 	SPEC.SNP.chr.res <- resid(lm( SNP$Specificity ~ SNP$CHR ))
@@ -165,9 +172,9 @@ PLOT_SS <- function() {
 	 # Add P-Values to Plot
 	STAR.SNP <- STAR.IND <- " "
 	if ( P_VAL.SNP<0.05 & P_VAL.SNP>.01 ) { STAR.SNP <- "*" } ; if ( P_VAL.SNP<.01 ) { STAR.SNP <- "**" }
-	text( quantile(XLIM,.95),quantile(YLIM.SPEC,.05),labels=paste(STAR.SNP,"p =",formatC(P_VAL.SNP, digits=2, format="e")),col=COLS["SNP"],pos=2)
+	text( quantile(XLIM,.99),quantile(YLIM.SPEC,.05),labels=paste(STAR.SNP,"p =",formatC(P_VAL.SNP, digits=2, format="e")),col=COLS["SNP"],pos=2)
 	if ( P_VAL.IND<0.05 & P_VAL.IND>.01 ) { STAR.IND <- "*" } ; if ( P_VAL.IND<.01 ) { STAR.IND <- "**" }
-	text( quantile(XLIM,.95),quantile(YLIM.SPEC,.10),labels=paste(STAR.IND,"p =",formatC(P_VAL.IND, digits=2, format="e")),col=COLS["IND"],pos=2)
+	text( quantile(XLIM,.99),quantile(YLIM.SPEC,.10),labels=paste(STAR.IND,"p =",formatC(P_VAL.IND, digits=2, format="e")),col=COLS["IND"],pos=2)
 	## Legend
 	legend(quantile(XLIM,0),quantile(YLIM.SPEC,1),legend=c("SNPs","Indels"),col=COLS,lty=LTYS,lwd=3,cex=.7)
 	legend(quantile(XLIM,0.3),quantile(YLIM.SPEC,1),legend=unique(SNP$GRP),pch=unique(PCHS),lwd=3,cex=.7,ncol=2)
@@ -178,7 +185,7 @@ PLOT_SS <- function() {
 ## PLOT RESULTS #####################################################
 #####################################################################
 
-PLOT_HC <- function() {
+PLOT_HC <- function(DAT,Grp_Size) {
 
 	##############################################
 	## Final Stats vs Group Size #################
@@ -189,13 +196,13 @@ PLOT_HC <- function() {
 
 	## Plot Raw Numbers (Run Time vs Group Size)
 	 # Raw Parameters
-	XLIM <- c( 0, max( FINAL$SIZE) ) * c(1,2)
-	YLIM <- c( 0, max(FINAL$SU) ) * c(1,3)
+	XLIM <- c( 0, max( FINAL$SIZE) ) * c(1,4) # c(1,2)
+	YLIM <- c( 0, max(FINAL$SU) ) * c(1,5) # c(1,3)
 	COLS <- PLOT_COLS[c(4,7,8)] # PLOT_COLS[c(2,6,8)]
 	 # Make Plot
 	plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Group Size",ylab="Total CPU Hours (SU)",main=paste("Runtime vs Groupsize -",FILE_TAG),xaxt="n",yaxt="n" )
-	abline( h=seq(0,YLIM[2]+100,100), lty=3,col="grey50",lwd=1 )
-	axis( 2, at=seq(0,10e3,1e2) )
+	abline( h=seq(0,YLIM[2]+500,500), lty=3,col="grey50",lwd=1 )
+	axis( 2, at=seq(0,10e3,5e2) )
 	# abline( v=c(Grp_Size.uniq,50,100,200,300,400,437), lty=3,col="grey50",lwd=1 )
 	# axis( 1, at=c(Grp_Size.uniq,50,100,200,300,400,437) )
 	abline( v=seq(0,500,20), lty=3,col="grey50",lwd=1 )
@@ -220,7 +227,7 @@ PLOT_HC <- function() {
 	## Plot Per Sample Numbers (Run Time vs Group Size)
 	 # Per Sample Parameters
 	# XLIM <- range( FINAL$SIZE )
-	YLIM <- c( 0, max(FINAL$SU_SAMP) )
+	YLIM <- c( 0, max(FINAL$SU_SAMP) ) * c(1,3)
 	 # Make Plot
 	plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Group Size",ylab="CPU Hours (SU) per Sample",main=paste("Per Sample Runtime vs Groupsize -",FILE_TAG),xaxt="n" )
 	abline( h=seq(0,YLIM[2]+20,2), lty=3,col="grey50",lwd=1 )
@@ -248,12 +255,16 @@ PLOT_HC <- function() {
 ## PLOT ALL TOGETHER ################################################
 #####################################################################
 
+## Which HC Tests Finished Running?
+DAT.fin <- DAT[ which(unlist(lapply(DAT,function(x)x$INC))==F) ]
+Grp_Size.fin <- Grp_Size[ which(unlist(lapply(DAT,function(x)x$INC))==F) ]
+
 ## Create File for Entire Figure 2 (At least first parts)
-png(paste(PathToSave,"2_A-D.png",sep=""),width=2400,height=2000,pointsize=40)
+png(paste(PathToSave,"2_A-D.2.png",sep=""),width=2400,height=2000,pointsize=40)
  # Specify Layout
 par(mfrow=c(2,2))
  # Create Plots
-PLOT_HC()
+PLOT_HC(DAT.fin, Grp_Size.fin)
 PLOT_SS()
 
 dev.off()
@@ -276,11 +287,12 @@ png( paste(PathToSave,"Supp-HC_Sites_v_Time.",FILE_TAG,".png",sep=""), height=10
 COLS.which <- colorRampPalette(PLOT_COLS[1:7])(length(Grp_Size.uniq))
 COLS <- COLS.which[factor(Grp_Size)]
 XLIM <- range( lapply(DAT, function(x) range(x$RUN$SEC,na.rm=T) ) )
-XTICK <- seq(0,XLIM[2]+3600,3600)
+BY <- 5*3600
+XTICK <- seq(0,XLIM[2]+BY,BY)
 YLIM <- range( lapply(DAT, function(x) range(x$RUN$LOC,na.rm=T) ) )
 ## Create Plot
 plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Walltime (Hrs)",ylab="Sites", main=paste("ProgressMeter -",FILE_TAG), xaxt="n" )
-axis( 1, at=XTICK, label=1:length(XTICK) )
+axis( 1, at=XTICK, label=(BY/3600)*0:(length(XTICK)-1) )
 abline( v=seq(0,XLIM[2]+1800,1800), lty=3,col="grey50",lwd=1 )
 abline( h=seq(0,YLIM[2]+1e7,1e7), lty=3,col="grey50",lwd=1 )
 ## Add Data
@@ -293,7 +305,7 @@ for ( f in 1:length(DAT) ) {
 	points( final["Secs"], final["Sites"], col=COLS[f], pch=10, lwd=2,cex=1.5 )
 }
  # Legend
-legend( "bottomright", fill=COLS.which,legend=levels(factor(Grp_Size)), bg="white",title="Group Size" )
+legend( "bottomright", fill=COLS.which,legend=levels(factor(Grp_Size)), bg="white",title="Group Size",ncol=8,cex=.8 )
 dev.off()
 
 
