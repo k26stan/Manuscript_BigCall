@@ -196,11 +196,11 @@ PLOT_HC <- function(DAT,Grp_Size) {
 
 	## Plot Raw Numbers (Run Time vs Group Size)
 	 # Raw Parameters
-	XLIM <- c( 0, max( FINAL$SIZE) ) * c(1,4) # c(1,2)
-	YLIM <- c( 0, max(FINAL$SU) ) * c(1,5) # c(1,3)
+	XLIM <- c( 0, max( FINAL$SIZE) ) * c(1,2) # c(1,4) # 
+	YLIM <- c( 0, max(FINAL$SU) ) * c(1,3) # c(1,5) # 
 	COLS <- PLOT_COLS[c(4,7,8)] # PLOT_COLS[c(2,6,8)]
 	 # Make Plot
-	plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Group Size",ylab="Total CPU Hours (SU)",main=paste("Runtime vs Groupsize -",FILE_TAG),xaxt="n",yaxt="n" )
+	plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Group Size",ylab="Total CPU Hours (SU)",main=paste("Computational Cost vs Groupsize -",FILE_TAG),xaxt="n",yaxt="n" )
 	abline( h=seq(0,YLIM[2]+500,500), lty=3,col="grey50",lwd=1 )
 	axis( 2, at=seq(0,10e3,5e2) )
 	# abline( v=c(Grp_Size.uniq,50,100,200,300,400,437), lty=3,col="grey50",lwd=1 )
@@ -227,9 +227,9 @@ PLOT_HC <- function(DAT,Grp_Size) {
 	## Plot Per Sample Numbers (Run Time vs Group Size)
 	 # Per Sample Parameters
 	# XLIM <- range( FINAL$SIZE )
-	YLIM <- c( 0, max(FINAL$SU_SAMP) ) * c(1,3)
+	YLIM <- c( 0, max(FINAL$SU_SAMP) ) # * c(1,3) #
 	 # Make Plot
-	plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Group Size",ylab="CPU Hours (SU) per Sample",main=paste("Per Sample Runtime vs Groupsize -",FILE_TAG),xaxt="n" )
+	plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Group Size",ylab="CPU Hours (SU) per Sample",main=paste("Per Sample Computational Cost vs Groupsize -",FILE_TAG),xaxt="n" )
 	abline( h=seq(0,YLIM[2]+20,2), lty=3,col="grey50",lwd=1 )
 	# abline( v=c(Grp_Size.uniq,50,100,200,300,400,437), lty=3,col="grey50",lwd=1 )
 	# axis( 1, at=c(Grp_Size.uniq,50,100,200,300,400,437) )

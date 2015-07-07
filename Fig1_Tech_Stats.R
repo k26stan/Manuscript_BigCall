@@ -328,48 +328,54 @@ RE_ORDER <- c(4,1,5,8,6,9,3,2,7)
 By_Step <- lapply( By_Step, function(x) x[RE_ORDER,] )
 
 #####################################
-## PUT INTO SAMPLE ##################
-d <- 1
-table_cols <- c("Order","Step","Tool","Commands/Sample","Cores/Command","Commands/16cores","Wall_Time/Sample","CPU_Time/Sample","SUs/Sample","MEM/Command","VMEM/Command","Output_File/Sample")
+## SUMMARY TABLE ####################
+d <- 2
+table_cols <- c("Order","Step","Tool","Commands/Sample","Cores/Command","Commands/Node","Wall_Time/Sample","CPU_Time/Sample","SUs/Sample","MEM/Command","VMEM/Command","Output_File/Sample")
 TABLE <- array( ,c( length(STEP_NAMES)+1,length(table_cols) ) )
 colnames(TABLE) <- table_cols ; rownames(TABLE) <- c("FQ",STEP_NAMES)
  # Steps
 TABLE[,"Order"] <- 1:nrow(TABLE)-1
 TABLE[,"Step"] <- rownames(TABLE)
-TABLE[,"Tool"] <- c( "-","BWA","Samtools","Samtools","Samtools","PicardTools","GATK","GATK","GATK","GATK" )
+TABLE[,"Tool"] <- c( "NA","BWA","Samtools","Samtools","Samtools","Picard","GATK","GATK","GATK","GATK" )
  # Cores & Commands
-Print_Jobs <- paste( round(By_Step$Command_per_Sample$MN,d), "+/-", round(By_Step$Command_per_Sample$SD,d), sep="" )
-TABLE[,"Commands/Sample"] <- c( NA, Print_Jobs ) ; TABLE[,"Commands/Sample"][4:10] <- rep( c(1,4),c(6,1) )
-Print_Cores <- paste( round(By_Step$Cores_per_Command$MN,d), "+/-", round(By_Step$Cores_per_Command$SD,d), sep="" )
+Print_Jobs <- paste( round(By_Step$Command_per_Sample$MN,d), "newline (", round(By_Step$Command_per_Sample$SD,d), ")", sep="" )
+TABLE[,"Commands/Sample"] <- c( NA, Print_Jobs ) # ; TABLE[,"Commands/Sample"][4:10] <- rep( c(1,4),c(6,1) )
+Print_Cores <- paste( round(By_Step$Cores_per_Command$MN,d), "newline (", round(By_Step$Cores_per_Command$SD,d), ")", sep="" )
 TABLE[,"Cores/Command"] <- c( NA, Print_Cores )
-# Print_perNode <- paste( round(By_Step$Command_per_Node$MN,d), "+/-", round(By_Step$Command_per_Node$SD,d), sep="" )
-Print_perNode <- paste( round(16/By_Step$Cores_per_Command$MN,d), "+/-", round(16/By_Step$Cores_per_Command$SD,d), sep="" )
-TABLE[,"Commands/16cores"] <- c( NA, Print_perNode )
-# TABLE[,"Commands/16cores"] <- c( NA, 16 / By_Step$Cores_per_Command$MN )
+# Print_perNode <- paste( round(By_Step$Command_per_Node$MN,d), "newline (", round(By_Step$Command_per_Node$SD,d), ")", sep="" )
+Print_perNode <- paste( round(16/By_Step$Cores_per_Command$MN,d), "newline (", round(16/By_Step$Cores_per_Command$SD,d), ")", sep="" )
+TABLE[,"Commands/Node"] <- c( NA, Print_perNode )
+# TABLE[,"Commands/Node"] <- c( NA, 16 / By_Step$Cores_per_Command$MN )
  # Time & SUs
-Print_Wall_Time <- paste( round(By_Step$Walltime_per_Sample$MN,d), "+/-", round(By_Step$Walltime_per_Sample$SD,d), sep="" )
+Print_Wall_Time <- paste( round(By_Step$Walltime_per_Sample$MN,d), "newline (", round(By_Step$Walltime_per_Sample$SD,d), ")", sep="" )
 TABLE[,"Wall_Time/Sample"] <- c(NA, Print_Wall_Time)
-Print_CPU_Time <- paste( round(By_Step$CPUtime_per_Sample$MN,d), "+/-", round(By_Step$CPUtime_per_Sample$SD,d), sep="" )
+Print_CPU_Time <- paste( round(By_Step$CPUtime_per_Sample$MN,d), "newline (", round(By_Step$CPUtime_per_Sample$SD,d), ")", sep="" )
 TABLE[,"CPU_Time/Sample"] <- c(NA, Print_CPU_Time)
-Print_SUs <- paste( round(By_Step$SUs_per_Sample$MN,d), "+/-", round(By_Step$SUs_per_Sample$SD,d), sep="" )
+Print_SUs <- paste( round(By_Step$SUs_per_Sample$MN,d), "newline (", round(By_Step$SUs_per_Sample$SD,d), ")", sep="" )
 TABLE[,"SUs/Sample"] <- c(NA, Print_SUs)
  # Memory
-Print_MEM <- paste( round(By_Step$MEM_per_Command$MN,d), "+/-", round(By_Step$MEM_per_Command$SD,d), sep="" )
+Print_MEM <- paste( round(By_Step$MEM_per_Command$MN,d), "newline (", round(By_Step$MEM_per_Command$SD,d), ")", sep="" )
 TABLE[,"MEM/Command"] <- c( NA, Print_MEM )
-Print_VMEM <- paste( round(By_Step$VMEM_per_Command$MN,d), "+/-", round(By_Step$VMEM_per_Command$SD,d), sep="" )
+Print_VMEM <- paste( round(By_Step$VMEM_per_Command$MN,d), "newline (", round(By_Step$VMEM_per_Command$SD,d), ")", sep="" )
 TABLE[,"VMEM/Command"] <- c( NA, Print_VMEM )
  # File Size
-Print_Size <- paste( round(By_Step$FileSize_per_Sample$MN,d), "+/-", round(By_Step$FileSize_per_Sample$SD,d), sep="" )
+Print_Size <- paste( round(By_Step$FileSize_per_Sample$MN,d), "newline (", round(By_Step$FileSize_per_Sample$SD,d), ")", sep="" )
 TABLE[,"Output_File/Sample"] <- c(NA, Print_Size )
 FQ_SIZE <- aggregate( as.numeric(fastq[,"FILE_SIZE_F"]), list( SAMPLE=fastq$SAMPLE_F), sum )[,2] / 1e9
-TABLE["FQ","Output_File/Sample"] <- paste( round(mean(FQ_SIZE),d), "+/-", round(sd(FQ_SIZE),d), sep="" )
+TABLE["FQ","Output_File/Sample"] <- paste( round(mean(FQ_SIZE),d), "newline (", round(sd(FQ_SIZE),d), ")", sep="" )
 
 ## Add in HaplotypeCaller Stats
-HC.SU.print <- paste( round(mean(HC.perSamp),d), "+/-", round(sd(HC.perSamp),d), sep="" )
+HC.SU.print <- paste( round(mean(HC.perSamp),d), "newline (", round(sd(HC.perSamp),d), ")", sep="" )
 TABLE.HC.row <- c(10,"Haplo_Call","GATK", 4,16,1, NA,NA,HC.SU.print, NA,NA,NA )
 TABLE <- rbind( TABLE, TABLE.HC.row )
+## Reformat for Latex
+ # Change Step Names
+TABLE[6:nrow(TABLE),"Step"] <- c("MarkDuplicates","TargetCreator","IndelRealigner","BaseRecalibrator","PrintReads","HaplotypeCaller")
+TABLE[6:nrow(TABLE),"Step"] <- c("MarkDups","TrgtCrtr","IndlRlgnr","BsRecal","PrintReads","HaploCall")
+ # Add "\\" at the end
+TABLE[,ncol(TABLE)] <- paste( TABLE[,ncol(TABLE)], "\\\\", sep=" " )
 
-#####################################
+
 ## SAVE COMPILED RESULTS ############
 
 ## Save List of Results
@@ -377,9 +383,36 @@ save( By_Step, file=paste(PathToSave,"Compiled_Stats_By_Step.Rdata",sep="") )
 
 ## Save Tables
 write.table( By_Sample, paste(PathToSave,"Compiled_Stats_By_Sample.txt",sep=""), sep="\t",row.names=F,col.names=T,quote=F )
-write.table( TABLE, paste(PathToSave,"Summary_Stats_for_Table.txt",sep=""), sep="\t",row.names=F,col.names=T,quote=F )
-write.table( TABLE, paste(PathToSave,"Summary_Stats_by_Step.csv",sep=""), sep=",",row.names=F,col.names=T,quote=F )
-write.table( t(TABLE[,-1]), paste(PathToSave,"Summary_Stats_by_Step.transpose.csv",sep=""), sep=",",row.names=T,col.names=F,quote=F )
+write.table( TABLE[,-1], paste(PathToSave,"Summary_Stats_by_Step.txt",sep=""), sep=" & ",row.names=F,col.names=T,quote=F )
+write.table( TABLE[,-1], paste(PathToSave,"Summary_Stats_by_Step.csv",sep=""), sep=",",row.names=F,col.names=T,quote=F )
+
+#####################################
+## RECOMMENDATION TABLE #############
+
+table_cols <- c("Step","Tool","Memory per Command (GB)","Cores per Command","Commands per Node")
+TABLE.r <- array( ,c( length(STEP_NAMES)+1,length(table_cols) ) )
+colnames(TABLE.r) <- table_cols ; rownames(TABLE.r) <- c(STEP_NAMES,"HaplotypeCaller")
+# Steps
+TABLE.r[,"Step"] <- rownames(TABLE.r)
+TABLE.r[5:nrow(TABLE.r),"Step"] <- c("MarkDuplicates","TargetCreator","IndelRealigner","BaseRecalibrator","PrintReads","HaplotypeCaller")
+# Tools
+TABLE.r[,"Tool"] <- c( "BWA","Samtools","Samtools","Samtools","Picard","GATK","GATK","GATK","GATK","GATK" )
+# Memory Specified per Step
+TABLE.r[,"Memory per Command (GB)"] <- c(32,4,4,4,8,8,12,32,32,64)
+# Cores
+TABLE.r[,"Cores per Command"] <- c(8,1,1,1,2,2,3,8,8,16)
+# Commands
+TABLE.r[,"Commands per Node"] <- c(2,16,16,16,8,8,5,2,2,1)
+## Add "\\" at the end
+TABLE.r[,ncol(TABLE.r)] <- paste( TABLE.r[,ncol(TABLE.r)], "\\\\", sep=" " )
+
+## SAVE RECOMMENDATIONS ############
+write.table( TABLE.r, paste(PathToSave,"Recommendation_Table.txt",sep=""), sep=" & ",row.names=F,col.names=T,quote=F )
+write.table( TABLE.r, paste(PathToSave,"Recommendation_Table.csv",sep=""), sep=",",row.names=F,col.names=T,quote=F )
+
+
+
+
 
 #####################################################################
 ## CREATE PLOTS FOR FIGURE 1 ########################################
@@ -518,6 +551,48 @@ dev.off()
 #####################################################################
 ## END OF DOC #######################################################
 #####################################################################
+
+# #####################################
+# ## PUT INTO SAMPLE ##################
+# d <- 1
+# table_cols <- c("Order","Step","Tool","Commands/Sample","Cores/Command","Commands/16cores","Wall_Time/Sample","CPU_Time/Sample","SUs/Sample","MEM/Command","VMEM/Command","Output_File/Sample")
+# TABLE <- array( ,c( length(STEP_NAMES)+1,length(table_cols) ) )
+# colnames(TABLE) <- table_cols ; rownames(TABLE) <- c("FQ",STEP_NAMES)
+#  # Steps
+# TABLE[,"Order"] <- 1:nrow(TABLE)-1
+# TABLE[,"Step"] <- rownames(TABLE)
+# TABLE[,"Tool"] <- c( "-","BWA","Samtools","Samtools","Samtools","PicardTools","GATK","GATK","GATK","GATK" )
+#  # Cores & Commands
+# Print_Jobs <- paste( round(By_Step$Command_per_Sample$MN,d), "+/-", round(By_Step$Command_per_Sample$SD,d), sep="" )
+# TABLE[,"Commands/Sample"] <- c( NA, Print_Jobs ) # ; TABLE[,"Commands/Sample"][4:10] <- rep( c(1,4),c(6,1) )
+# Print_Cores <- paste( round(By_Step$Cores_per_Command$MN,d), "+/-", round(By_Step$Cores_per_Command$SD,d), sep="" )
+# TABLE[,"Cores/Command"] <- c( NA, Print_Cores )
+# # Print_perNode <- paste( round(By_Step$Command_per_Node$MN,d), "+/-", round(By_Step$Command_per_Node$SD,d), sep="" )
+# Print_perNode <- paste( round(16/By_Step$Cores_per_Command$MN,d), "+/-", round(16/By_Step$Cores_per_Command$SD,d), sep="" )
+# TABLE[,"Commands/16cores"] <- c( NA, Print_perNode )
+# # TABLE[,"Commands/16cores"] <- c( NA, 16 / By_Step$Cores_per_Command$MN )
+#  # Time & SUs
+# Print_Wall_Time <- paste( round(By_Step$Walltime_per_Sample$MN,d), "+/-", round(By_Step$Walltime_per_Sample$SD,d), sep="" )
+# TABLE[,"Wall_Time/Sample"] <- c(NA, Print_Wall_Time)
+# Print_CPU_Time <- paste( round(By_Step$CPUtime_per_Sample$MN,d), "+/-", round(By_Step$CPUtime_per_Sample$SD,d), sep="" )
+# TABLE[,"CPU_Time/Sample"] <- c(NA, Print_CPU_Time)
+# Print_SUs <- paste( round(By_Step$SUs_per_Sample$MN,d), "+/-", round(By_Step$SUs_per_Sample$SD,d), sep="" )
+# TABLE[,"SUs/Sample"] <- c(NA, Print_SUs)
+#  # Memory
+# Print_MEM <- paste( round(By_Step$MEM_per_Command$MN,d), "+/-", round(By_Step$MEM_per_Command$SD,d), sep="" )
+# TABLE[,"MEM/Command"] <- c( NA, Print_MEM )
+# Print_VMEM <- paste( round(By_Step$VMEM_per_Command$MN,d), "+/-", round(By_Step$VMEM_per_Command$SD,d), sep="" )
+# TABLE[,"VMEM/Command"] <- c( NA, Print_VMEM )
+#  # File Size
+# Print_Size <- paste( round(By_Step$FileSize_per_Sample$MN,d), "+/-", round(By_Step$FileSize_per_Sample$SD,d), sep="" )
+# TABLE[,"Output_File/Sample"] <- c(NA, Print_Size )
+# FQ_SIZE <- aggregate( as.numeric(fastq[,"FILE_SIZE_F"]), list( SAMPLE=fastq$SAMPLE_F), sum )[,2] / 1e9
+# TABLE["FQ","Output_File/Sample"] <- paste( round(mean(FQ_SIZE),d), "+/-", round(sd(FQ_SIZE),d), sep="" )
+
+# ## Add in HaplotypeCaller Stats
+# HC.SU.print <- paste( round(mean(HC.perSamp),d), "+/-", round(sd(HC.perSamp),d), sep="" )
+# TABLE.HC.row <- c(10,"Haplo_Call","GATK", 4,16,1, NA,NA,HC.SU.print, NA,NA,NA )
+# TABLE <- rbind( TABLE, TABLE.HC.row )
 
 
 # ##############################################################################################################################################################
