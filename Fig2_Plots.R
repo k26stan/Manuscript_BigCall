@@ -20,8 +20,6 @@
    # Out of the calls you identify as Negative, what fraction actually ARE negative?
    # 1 - False Omission Rate
 
-
-
 # Plot Sens/Spec vs % EUR all on same 2 plots ##
 
 PLOT_COLS <- c("firebrick2","sienna2","gold2","chartreuse3","cadetblue2","steelblue3","slateblue3","black","grey50","white")
@@ -194,13 +192,18 @@ PLOT_HC <- function(DAT,Grp_Size) {
 	TIMES <- unlist(lapply( DAT, function(x) x$FIN["Secs"] ))
 	FINAL <- data.frame( SIZE=Grp_Size, SEC=TIMES, SEC_SAMP=TIMES/Grp_Size, SU=round(16*TIMES/3600,0), SU_SAMP=round(16*TIMES/3600,0)/Grp_Size )
 
-	## Plot Raw Numbers (Run Time vs Group Size)
+	## Normalize to Individual Variant Calling Approach (for per Sample plot)
+	IND_MEAN <- mean( FINAL$SU_SAMP[which(FINAL$SIZE==1)] )
+	FINAL$SU_SAMP <- FINAL$SU_SAMP / IND_MEAN
+
+	##############################################
+	## Plot Raw Numbers (Run Time vs Group Size) #
 	 # Raw Parameters
 	XLIM <- c( 0, max( FINAL$SIZE) ) * c(1,2) # c(1,4) # 
 	YLIM <- c( 0, max(FINAL$SU) ) * c(1,3) # c(1,5) # 
 	COLS <- PLOT_COLS[c(4,7,8)] # PLOT_COLS[c(2,6,8)]
 	 # Make Plot
-	plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Group Size",ylab="Total CPU Hours (SU)",main=paste("Computational Cost vs Groupsize -",FILE_TAG),xaxt="n",yaxt="n" )
+	plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Group Size",ylab="Total CPU Hours (SU)",main=paste("CPU Cost vs Groupsize -",FILE_TAG),xaxt="n",yaxt="n" )
 	abline( h=seq(0,YLIM[2]+500,500), lty=3,col="grey50",lwd=1 )
 	axis( 2, at=seq(0,10e3,5e2) )
 	# abline( v=c(Grp_Size.uniq,50,100,200,300,400,437), lty=3,col="grey50",lwd=1 )
@@ -224,15 +227,15 @@ PLOT_HC <- function(DAT,Grp_Size) {
 	 # Legend
 	legend("topleft",col=COLS[1:2],legend=c("Quad","Lin"),title="Fits",lty=c(1,2),lwd=3 )
 
-	## Plot Per Sample Numbers (Run Time vs Group Size)
+	##############################################
+	## Plot Per Sample Numbers (Time vs Size) ####
 	 # Per Sample Parameters
 	# XLIM <- range( FINAL$SIZE )
-	YLIM <- c( 0, max(FINAL$SU_SAMP) ) # * c(1,3) #
+	YLIM <- c( 0, max(FINAL$SU_SAMP) ) * c(1,1.5) #
 	 # Make Plot
-	plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Group Size",ylab="CPU Hours (SU) per Sample",main=paste("Per Sample Computational Cost vs Groupsize -",FILE_TAG),xaxt="n" )
-	abline( h=seq(0,YLIM[2]+20,2), lty=3,col="grey50",lwd=1 )
-	# abline( v=c(Grp_Size.uniq,50,100,200,300,400,437), lty=3,col="grey50",lwd=1 )
-	# axis( 1, at=c(Grp_Size.uniq,50,100,200,300,400,437) )
+	plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Group Size",ylab="Per Sample Cost (vs Individual Calling)",main=paste("Per Sample CPU Cost vs Groupsize -",FILE_TAG),xaxt="n" )
+	# abline( h=seq(0,YLIM[2]+20,2), lty=3,col="grey50",lwd=1 )
+	abline( h=seq(0,10,.25), lty=3,col="grey50",lwd=1 ) ; abline( h=1, lty=1,col="black",lwd=1 )
 	abline( v=seq(0,500,20), lty=3,col="grey50",lwd=1 )
 	axis( 1, at=seq(0,500,20) )
 	 # Plot Fits
@@ -269,14 +272,13 @@ PLOT_SS()
 
 dev.off()
 
-
-
-
-
+#####################################################################
+#####################################################################
 #####################################################################
 ## SUPPLEMENTAL PLOTS ###############################################
 #####################################################################
-
+#####################################################################
+#####################################################################
 
 #########################################################
 ## Sites vs Time ########################################
@@ -293,8 +295,11 @@ YLIM <- range( lapply(DAT, function(x) range(x$RUN$LOC,na.rm=T) ) )
 ## Create Plot
 plot( 0,0,type="n", xlim=XLIM,ylim=YLIM, xlab="Walltime (Hrs)",ylab="Sites", main=paste("ProgressMeter -",FILE_TAG), xaxt="n" )
 axis( 1, at=XTICK, label=(BY/3600)*0:(length(XTICK)-1) )
-abline( v=seq(0,XLIM[2]+1800,1800), lty=3,col="grey50",lwd=1 )
+abline( v=seq(0,XLIM[2]+3600*5,3600*5), lty=3,col="grey50",lwd=1 )
 abline( h=seq(0,YLIM[2]+1e7,1e7), lty=3,col="grey50",lwd=1 )
+ # Max Wall time
+abline( v=72*3600, lty=2,col="firebrick3",lwd=3 )
+text( 72*3600, quantile(YLIM,.9), srt=90, label="Max Walltime",col="firebrick3",pos=2 )
 ## Add Data
 for ( f in 1:length(DAT) ) {
 	name <- names(DAT)[f]
@@ -304,7 +309,7 @@ for ( f in 1:length(DAT) ) {
 	points( xvals, yvals, col=COLS[f], type="l",lwd=2 )
 	points( final["Secs"], final["Sites"], col=COLS[f], pch=10, lwd=2,cex=1.5 )
 }
- # Legend
+## Legend
 legend( "bottomright", fill=COLS.which,legend=levels(factor(Grp_Size)), bg="white",title="Group Size",ncol=8,cex=.8 )
 dev.off()
 

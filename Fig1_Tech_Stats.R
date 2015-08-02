@@ -207,7 +207,7 @@ HC[,2] <- as.character(HC[,2])
 for ( i in c(1,3:ncol(HC)) ) { HC[,i] <- as.numeric(as.character(HC[,i])) }
 HC <- data.frame( HC, SU_per_Sample=HC$SU/HC$SAMPS )
 HC <- HC[ order(HC$CHR,decreasing=F), ] ; HC <- HC[ order(as.numeric(as.character(HC$GRP)),decreasing=F), ]
- # Combine into Group & Region of Genome
+ # Combine SU stats into Group & Region of Genome
 HC.SU.x.CHR.GRP <- aggregate( HC$SU, list(CHR=HC$CHR,GRP=HC$GRP), sum )
 HC.SU.x.CHR <- aggregate( HC$SU, list(CHR=HC$CHR), sum )
 HC.SU.x.GRP <- aggregate( HC$SU, list(GRP=HC$GRP), sum )
@@ -215,6 +215,13 @@ HC.SUpSAMP.x.GRP <- data.frame( HC.SU.x.GRP, SAMPS=HC$SAMPS[ match( HC.SU.x.GRP$
 HC.SUpSAMP.x.GRP <- data.frame( HC.SUpSAMP.x.GRP, SU_per_Sample=HC.SUpSAMP.x.GRP$SU/HC.SUpSAMP.x.GRP$SAMP )
  # Get Vector of per Sample Runtimes for Boxplot
 HC.perSamp <- rep( HC.SUpSAMP.x.GRP[,"SU_per_Sample"],HC.SUpSAMP.x.GRP[,"SAMPS"] )
+ # Combine HR stats into Group & Region of Genome
+HC.HR.x.CHR.GRP <- aggregate( HC$RUN_HRS, list(CHR=HC$CHR,GRP=HC$GRP), sum )
+HC.HR.x.CHR <- aggregate( HC$RUN_HRS, list(CHR=HC$CHR), sum )
+HC.HR.x.GRP <- aggregate( HC$RUN_HRS, list(GRP=HC$GRP), sum )
+HC.HRpSAMP.x.GRP <- data.frame( HC.HR.x.GRP, SAMPS=HC$SAMPS[ match( HC.HR.x.GRP$GRP, HC$GRP ) ] ) ; colnames(HC.HRpSAMP.x.GRP)[2] <- "HR"
+HC.HRpSAMP.x.GRP <- data.frame( HC.HRpSAMP.x.GRP, HR_per_Sample=HC.HRpSAMP.x.GRP$HR/HC.HRpSAMP.x.GRP$SAMP )
+HC.HRperSamp <- rep( HC.HRpSAMP.x.GRP[,"HR_per_Sample"],HC.HRpSAMP.x.GRP[,"SAMPS"] )
 
 #####################################################################
 ## COMPILE STATS PER STEP ###########################################
@@ -366,14 +373,19 @@ TABLE["FQ","Output_File/Sample"] <- paste( round(mean(FQ_SIZE),d), "newline (", 
 
 ## Add in HaplotypeCaller Stats
 HC.SU.print <- paste( round(mean(HC.perSamp),d), "newline (", round(sd(HC.perSamp),d), ")", sep="" )
-TABLE.HC.row <- c(10,"Haplo_Call","GATK", 4,16,1, NA,NA,HC.SU.print, NA,NA,NA )
+HC.HR.print <- paste( round(mean(HC.HRperSamp),d), "newline (", round(sd(HC.HRperSamp),d), ")", sep="" )
+TABLE.HC.row <- c(10,"Haplo_Call","GATK", 4,16,1, HC.HR.print,NA,HC.SU.print, "29.51newline (4.75)","60.04newline (0)",NA )
 TABLE <- rbind( TABLE, TABLE.HC.row )
-## Reformat for Latex
- # Change Step Names
+
+## Change Step Names
 TABLE[6:nrow(TABLE),"Step"] <- c("MarkDuplicates","TargetCreator","IndelRealigner","BaseRecalibrator","PrintReads","HaplotypeCaller")
 TABLE[6:nrow(TABLE),"Step"] <- c("MarkDups","TrgtCrtr","IndlRlgnr","BsRecal","PrintReads","HaploCall")
+
+
+## Reformat for Latex
+LATEX <- TABLE
  # Add "\\" at the end
-TABLE[,ncol(TABLE)] <- paste( TABLE[,ncol(TABLE)], "\\\\", sep=" " )
+LATEX[,ncol(LATEX)] <- paste( LATEX[,ncol(LATEX)], "\\\\", sep=" " )
 
 
 ## SAVE COMPILED RESULTS ############
@@ -383,8 +395,8 @@ save( By_Step, file=paste(PathToSave,"Compiled_Stats_By_Step.Rdata",sep="") )
 
 ## Save Tables
 write.table( By_Sample, paste(PathToSave,"Compiled_Stats_By_Sample.txt",sep=""), sep="\t",row.names=F,col.names=T,quote=F )
-write.table( TABLE[,-1], paste(PathToSave,"Summary_Stats_by_Step.txt",sep=""), sep=" & ",row.names=F,col.names=T,quote=F )
-write.table( TABLE[,-1], paste(PathToSave,"Summary_Stats_by_Step.csv",sep=""), sep=",",row.names=F,col.names=T,quote=F )
+write.table( LATEX[,-1], paste(PathToSave,"Summary_Stats_by_Step.txt",sep=""), sep=" & ",row.names=F,col.names=T,quote=F )
+write.table( LATEX[,-1], paste(PathToSave,"Summary_Stats_by_Step.csv",sep=""), sep=",",row.names=F,col.names=T,quote=F )
 
 #####################################
 ## RECOMMENDATION TABLE #############
